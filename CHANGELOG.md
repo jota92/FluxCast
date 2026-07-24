@@ -4,6 +4,9 @@ All notable changes will be recorded here.
 
 ## 0.1.0 — unreleased
 
+- Added authenticated ICE candidate retry/fallback with measured RTT and an
+  explicit credential-restart API.
+
 - Relay forwarding now isolates local send failures to the affected subscriber,
   evicts it after three consecutive failures, and reports
   `fluxcast_relay_send_failures_total`.

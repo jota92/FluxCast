@@ -12,7 +12,7 @@
 
 use std::io;
 use std::net::{SocketAddr, UdpSocket};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use rand_core::{OsRng, RngCore};
 
@@ -29,7 +29,7 @@ const ATTR_ICE_CONTROLLED: u16 = 0x8029;
 const ATTR_ICE_CONTROLLING: u16 = 0x802a;
 
 /// One side's ICE short-term credentials, exchanged over the signalling channel.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct IceCredentials {
     pub ufrag: String,
     pub pwd: String,
@@ -62,6 +62,20 @@ fn random_token(len: usize) -> String {
 pub struct InboundCheck {
     /// True when the controlling peer asked to nominate this pair.
     pub nominated: bool,
+}
+
+/// A remote candidate that completed an authenticated connectivity check and
+/// was nominated by the controlling agent.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct NominatedCandidate {
+    /// Address used for the nominated path.
+    pub remote: SocketAddr,
+    /// Address observed by the successful peer.
+    pub mapped: SocketAddr,
+    /// Round-trip duration for the successful check.
+    pub rtt: Duration,
+    /// Number of checks attempted across all candidates.
+    pub attempts: u32,
 }
 
 /// An authenticated ICE connectivity-check agent over one UDP socket.
@@ -106,6 +120,59 @@ impl IceAgent {
     /// Returns the socket query error.
     pub fn local_addr(&self) -> io::Result<SocketAddr> {
         self.socket.local_addr()
+    }
+
+    /// Replaces short-term credentials for an ICE restart while retaining the
+    /// bound UDP socket. The caller must exchange the new credentials through
+    /// its authenticated signalling channel before checking candidates again.
+    pub fn restart(&mut self, local: IceCredentials, remote: IceCredentials) {
+        self.local = local;
+        self.remote = remote;
+        self.tie_breaker = OsRng.next_u64();
+    }
+
+    /// Nominates the first authenticated reachable candidate in caller-provided
+    /// preference order. Every candidate receives up to `attempts_per_candidate`
+    /// checks before the next candidate is tried, which provides a direct-path
+    /// to relay-path fallback without treating reachability as unauthenticated.
+    ///
+    /// # Errors
+    ///
+    /// Returns `InvalidInput` for zero attempts and the last check error when
+    /// no candidate can be nominated.
+    pub fn nominate_first_reachable(
+        &self,
+        candidates: &[SocketAddr],
+        attempts_per_candidate: u8,
+    ) -> io::Result<NominatedCandidate> {
+        if attempts_per_candidate == 0 {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "attempts_per_candidate must be at least one",
+            ));
+        }
+        let mut attempts = 0_u32;
+        let mut last_error = None;
+        for candidate in candidates {
+            for _ in 0..attempts_per_candidate {
+                attempts = attempts.saturating_add(1);
+                let started = Instant::now();
+                match self.connectivity_check(*candidate, true) {
+                    Ok(mapped) => {
+                        return Ok(NominatedCandidate {
+                            remote: *candidate,
+                            mapped,
+                            rtt: started.elapsed(),
+                            attempts,
+                        });
+                    }
+                    Err(error) => last_error = Some(error),
+                }
+            }
+        }
+        Err(last_error.unwrap_or_else(|| {
+            io::Error::new(io::ErrorKind::NotFound, "no ICE candidates supplied")
+        }))
     }
 
     /// Sends one Binding check to `remote` and waits for a valid success
@@ -286,5 +353,52 @@ mod tests {
         // B never accepts the forged check, so A times out waiting for a reply.
         assert!(a.connectivity_check(b_addr, true).is_err());
         assert!(responder.join().unwrap().is_err());
+    }
+
+    #[test]
+    fn nomination_retries_then_falls_back_to_the_next_candidate() {
+        let a_cred = IceCredentials::random();
+        let b_cred = IceCredentials::random();
+        let a_sock = UdpSocket::bind("127.0.0.1:0").unwrap();
+        let b_sock = UdpSocket::bind("127.0.0.1:0").unwrap();
+        // Keep this socket open without serving it so its address deterministically times out.
+        let unreachable = UdpSocket::bind("127.0.0.1:0").unwrap();
+        let unreachable_addr = unreachable.local_addr().unwrap();
+        let a_addr = a_sock.local_addr().unwrap();
+        let b_addr = b_sock.local_addr().unwrap();
+        let a = IceAgent::new(
+            a_sock,
+            a_cred.clone(),
+            b_cred.clone(),
+            true,
+            Duration::from_millis(100),
+        )
+        .unwrap();
+        let b = IceAgent::new(b_sock, b_cred, a_cred, false, Duration::from_secs(1)).unwrap();
+        let responder = thread::spawn(move || b.serve_once());
+
+        let nominated = a
+            .nominate_first_reachable(&[unreachable_addr, b_addr], 1)
+            .unwrap();
+        assert_eq!(nominated.remote, b_addr);
+        assert_eq!(nominated.mapped, a_addr);
+        assert_eq!(nominated.attempts, 2);
+        assert!(responder.join().unwrap().unwrap().nominated);
+    }
+
+    #[test]
+    fn restart_replaces_both_credential_sets_and_tie_breaker() {
+        let (mut a, _, _, _) = agents();
+        let old_local = a.local.clone();
+        let old_remote = a.remote.clone();
+        let old_tie_breaker = a.tie_breaker;
+        let local = IceCredentials::random();
+        let remote = IceCredentials::random();
+        a.restart(local.clone(), remote.clone());
+        assert_eq!(a.local, local);
+        assert_eq!(a.remote, remote);
+        assert_ne!(a.local, old_local);
+        assert_ne!(a.remote, old_remote);
+        assert_ne!(a.tie_breaker, old_tie_breaker);
     }
 }

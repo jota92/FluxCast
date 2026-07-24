@@ -27,6 +27,10 @@ fluxcast-security = { path = "../FluxCast/crates/fluxcast-security" }
 `fluxcast-proto` はパケット形式、`fluxcast-core` はメディア送受信の振る舞い、
 `fluxcast-security` はアプリケーション側で相手の identity を許可する方針を持つ場合に使います。
 
+接続候補は、優先順に `IceAgent::nominate_first_reachable` へ渡します。各候補を
+認証済みチェックで再試行し、最初に到達した経路を nomination して RTT を返します。
+`IceAgent::restart` は、認証済みのシグナリング経路で新しい資格情報を交換してから使います。
+
 ## Python と Node.js
 
 いずれも依存のないフレーミング実装です。パッケージ配布はまだ行っていないため、

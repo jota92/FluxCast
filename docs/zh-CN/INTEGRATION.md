@@ -24,6 +24,8 @@ fluxcast-security = { path = "../FluxCast/crates/fluxcast-security" }
 
 `fluxcast-proto` 负责数据包格式，`fluxcast-core` 负责媒体传输行为；只有当应用具有明确的对端 identity 授权策略时才使用 `fluxcast-security`。
 
+将候选地址按优先级传给 `IceAgent::nominate_first_reachable`。它会使用已认证检查重试每个候选、提名第一个可达路径，并返回 RTT。只有通过应用的已认证信令交换新凭据后，才可调用 `IceAgent::restart`。
+
 ## Python 与 Node.js
 
 两者都是无依赖的封包实现，尚未单独发布包。请从已获取的仓库中使用：

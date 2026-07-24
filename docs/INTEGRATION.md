@@ -33,6 +33,12 @@ you update. Use `fluxcast-proto` for framing, `fluxcast-core` for media
 transport behavior, and `fluxcast-security` only after your application has an
 explicit policy for authorizing peer identities.
 
+For controlled connectivity, give `IceAgent::nominate_first_reachable` remote
+candidates in your preferred order. It retries each candidate with authenticated
+checks, nominates the first reachable path, and returns its measured RTT.
+Call `IceAgent::restart` only after exchanging replacement credentials through
+your application's authenticated signalling channel.
+
 ## Python and Node.js
 
 The Python and Node modules are dependency-free framing references. They are
