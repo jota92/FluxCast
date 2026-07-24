@@ -4,3 +4,4 @@
 /examples/c/send_fcdp
 __pycache__/
 *.py[cod]
+sdk/swift/.build/
