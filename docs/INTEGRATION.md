@@ -36,6 +36,9 @@ explicit policy for authorizing peer identities.
 For controlled connectivity, give `IceAgent::nominate_first_reachable` remote
 candidates in your preferred order. It retries each candidate with authenticated
 checks, nominates the first reachable path, and returns its measured RTT.
+If both peers begin with the same role, tie-breaker role-conflict handling
+changes only the losing agent; retry the check or use the candidate helper with
+more than one attempt per candidate.
 Call `IceAgent::restart` only after exchanging replacement credentials through
 your application's authenticated signalling channel.
 

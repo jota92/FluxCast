@@ -29,6 +29,8 @@ fluxcast-security = { path = "../FluxCast/crates/fluxcast-security" }
 
 接続候補は、優先順に `IceAgent::nominate_first_reachable` へ渡します。各候補を
 認証済みチェックで再試行し、最初に到達した経路を nomination して RTT を返します。
+両端が同じ role で開始した場合は tie-breaker で負けた側だけが role を変更します。
+チェックを再試行するか、候補ごとの試行回数を 2 回以上にして helper を使います。
 `IceAgent::restart` は、認証済みのシグナリング経路で新しい資格情報を交換してから使います。
 
 暗号化済みデータ経路の切替には、`SecurePathConfig` と `SecurePathEndpoint` を使います。

@@ -36,9 +36,9 @@ measured performance on real hardware and networks.
       (`fluxcast-core::ice`), with candidate-pair ordering (`ordered_ice_pairs`)
 - [x] No-transcode authenticated fan-out relay leases/metrics
       (`RelaySubscriptions`)
-- [ ] Complete ICE agent state machine: candidate gathering, role-conflict
-      handling, and automatic connection management from gathered candidates.
-      Ordered authenticated retry and credential restart are implemented;
+- [ ] Complete ICE connection management from gathered candidates and an
+      application control plane for relay fallback. Ordered authenticated retry,
+      credential restart, and tie-breaker role-conflict handling are implemented;
       `SecurePathEndpoint` switches its active path after an encrypted probe.
 - [ ] Cross-network Publisher→Relay→Subscriber performance measurements
 

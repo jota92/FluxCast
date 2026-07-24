@@ -4,6 +4,9 @@ All notable changes will be recorded here.
 
 ## 0.1.0 — unreleased
 
+- Added authenticated ICE tie-breaker role-conflict handling with an automatic
+  role change for the losing agent and a retryable 487 response.
+
 - Added `SecurePathEndpoint`, which owns encrypted control/media sequence
   numbers and promotes a new active path only after a matching encrypted probe.
 
