@@ -33,8 +33,8 @@ cargo run -p fluxcast-cli -- send 127.0.0.1:9000 "hello FluxCast"
 
 ## 下一步
 
-- [代码集成（英文）](../INTEGRATION.md)
-- [Gateway 与实验运维（英文）](../OPERATIONS.md)
+- [代码集成](INTEGRATION.md)
+- [Gateway 与实验运维](OPERATIONS.md)
 - [摄像头演示](../../demo/README.md)
 - [FCDP 规范](../../spec/fcdp-v0.1.md)
 

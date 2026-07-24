@@ -34,8 +34,8 @@ cargo run -p fluxcast-cli -- send 127.0.0.1:9000 "hello FluxCast"
 
 ## 次に読む資料
 
-- [コードへの組み込み方（英語）](../INTEGRATION.md)
-- [Gateway と実験環境の運用（英語）](../OPERATIONS.md)
+- [コードへの組み込み方](INTEGRATION.md)
+- [Gateway と実験環境の運用](OPERATIONS.md)
 - [カメラのデモ](../../demo/README.md)
 - [FCDP 仕様](../../spec/fcdp-v0.1.md)
 

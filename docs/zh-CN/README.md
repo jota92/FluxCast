@@ -35,7 +35,7 @@ cargo run -p fluxcast-cli -- send 127.0.0.1:9000 "hello FluxCast"
 - **浏览器：**可使用 [`gateway/README.md`](../../gateway/README.md) 中的 WebSocket→UDP Gateway。对外部署前必须配置 TLS、应用自己的认证、Origin 限制和限流。
 - **摄像头演示：**[`demo/`](../../demo/) 提供从摄像头和麦克风到 HLS 播放的演示；它不是生产部署模板。
 
-英文详细资料包括[代码集成](../INTEGRATION.md)、[Gateway 与实验运维](../OPERATIONS.md)和[文档索引](../README.md)。
+详细资料包括[代码集成](INTEGRATION.md)、[Gateway 与实验运维](OPERATIONS.md)和[文档索引（英文）](../README.md)。
 
 ## 当前已有的能力
 

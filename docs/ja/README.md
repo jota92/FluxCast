@@ -36,8 +36,8 @@ cargo run -p fluxcast-cli -- send 127.0.0.1:9000 "hello FluxCast"
 - **ブラウザ:** [`gateway/README.md`](../../gateway/README.md) の WebSocket→UDP Gateway を使えます。公開時は必ず TLS、独自認証、Origin 制限、レート制限を設定してください。
 - **カメラの実演:** [`demo/`](../../demo/) にカメラ・マイクから HLS 再生までのデモがあります。これは本番構成の雛形ではありません。
 
-英語の詳細資料として、[コードへの組み込み方](../INTEGRATION.md)、
-[Gateway と実験環境の運用](../OPERATIONS.md)、[資料一覧](../README.md) を用意しています。
+詳細資料として、[コードへの組み込み方](INTEGRATION.md)、
+[Gateway と実験環境の運用](OPERATIONS.md)、[資料一覧（英語）](../README.md) を用意しています。
 
 ## 現在利用できる主な機能
 
