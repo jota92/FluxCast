@@ -11,7 +11,7 @@ Rust の stable toolchain を [rustup](https://rustup.rs/) で導入してから
 クラウド契約、DB、カメラは不要です。
 
 ```sh
-git clone <repository-url>
+git clone https://github.com/jota92/FluxCast.git
 cd fluxcast
 cargo test --workspace
 cargo run -p fluxcast-cli -- demo

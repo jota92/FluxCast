@@ -36,7 +36,7 @@ this repository. No database, cloud account, or media device is required for
 the local demo.
 
 ```sh
-git clone <repository-url>
+git clone https://github.com/jota92/FluxCast.git
 cd fluxcast
 cargo test --workspace
 cargo run -p fluxcast-cli -- demo

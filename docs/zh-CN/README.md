@@ -10,7 +10,7 @@ FluxCast 是一个面向低延迟媒体传输的实验性 UDP 基础设施。它
 或摄像头。
 
 ```sh
-git clone <repository-url>
+git clone https://github.com/jota92/FluxCast.git
 cd fluxcast
 cargo test --workspace
 cargo run -p fluxcast-cli -- demo
