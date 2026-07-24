@@ -17,8 +17,9 @@ use std::time::{Duration, Instant};
 use fluxcast_proto::{Header, PacketType};
 
 use crate::{
-    AccessUnit, CoreError, MAX_MEDIA_PAYLOAD, OutboundDatagram, RetransmitWindow,
-    TransportFeedback, fragment_access_unit, fragment_access_unit_sized,
+    AccessUnit, AdaptationDecision, BitrateController, CoreError, MAX_MEDIA_PAYLOAD,
+    OutboundDatagram, RetransmitWindow, TransportFeedback, fragment_access_unit,
+    fragment_access_unit_sized,
 };
 
 /// Bytes an `FEC` payload spends on its own header, ahead of the parity block.
@@ -207,19 +208,66 @@ pub struct MediaSender {
     next_sequence: u32,
     fec: FecPolicy,
     window: RetransmitWindow,
+    controller: BitrateController,
+    stable_since: Option<Instant>,
 }
 
 impl MediaSender {
-    /// Creates a sender. `retransmit_capacity` bounds the audio/keyframe cache.
+    /// Creates a sender with a default 6 Mbps target bitrate (0.5–20 Mbps).
+    /// `retransmit_capacity` bounds the audio/keyframe cache.
     #[must_use]
     pub fn new(session_id: u64, epoch: u16, fec: FecPolicy, retransmit_capacity: usize) -> Self {
+        Self::with_bitrate(
+            session_id,
+            epoch,
+            fec,
+            retransmit_capacity,
+            BitrateController::new(6_000_000, 500_000, 20_000_000),
+        )
+    }
+
+    /// Creates a sender with an explicit congestion-control bitrate estimator.
+    #[must_use]
+    pub fn with_bitrate(
+        session_id: u64,
+        epoch: u16,
+        fec: FecPolicy,
+        retransmit_capacity: usize,
+        controller: BitrateController,
+    ) -> Self {
         Self {
             session_id,
             epoch,
             next_sequence: 0,
             fec,
             window: RetransmitWindow::new(retransmit_capacity),
+            controller,
+            stable_since: None,
         }
+    }
+
+    /// The current congestion-controlled target bitrate in bits per second.
+    #[must_use]
+    pub const fn target_bps(&self) -> u64 {
+        self.controller.current_bps()
+    }
+
+    /// Feeds an authenticated receiver report into the AIMD estimator and
+    /// returns the encoder-facing decision (new target bitrate and whether a
+    /// recovery keyframe is needed). Loss or late delivery cuts the rate
+    /// immediately and restarts the stability window; a quiet interval lets the
+    /// rate recover gradually.
+    pub fn on_feedback(&mut self, feedback: TransportFeedback, now: Instant) -> AdaptationDecision {
+        let stable_for = self
+            .stable_since
+            .map_or(Duration::ZERO, |since| now.saturating_duration_since(since));
+        let before = self.controller.current_bps();
+        let decision = self.controller.observe_feedback(feedback, stable_for);
+        if decision.target_bps < before || self.stable_since.is_none() {
+            // A cut (or the first report) restarts the stability window.
+            self.stable_since = Some(now);
+        }
+        decision
     }
 
     /// Encodes one access unit into MEDIA datagrams plus, when enabled, a single
@@ -707,6 +755,46 @@ mod tests {
         // Well past the deadline: the partial frame is discarded.
         receiver.drop_expired(now + Duration::from_secs(1));
         assert_eq!(receiver.pending_frames(), 0);
+    }
+
+    #[test]
+    fn feedback_drives_congestion_control_and_keyframe_requests() {
+        let now = Instant::now();
+        let mut sender = MediaSender::with_bitrate(
+            1,
+            0,
+            FecPolicy::PerFrame,
+            256,
+            BitrateController::new(4_000_000, 500_000, 8_000_000),
+        );
+        assert_eq!(sender.target_bps(), 4_000_000);
+
+        // A lossy report cuts the rate immediately and asks for a keyframe.
+        let decision = sender.on_feedback(
+            TransportFeedback {
+                sent: 100,
+                received: 88,
+                late: 4,
+                rtt: Duration::from_millis(40),
+            },
+            now,
+        );
+        assert!(decision.target_bps < 4_000_000);
+        assert!(decision.request_keyframe);
+        let after_loss = sender.target_bps();
+
+        // A clean report after a stable interval lets the rate recover.
+        let recovered = sender.on_feedback(
+            TransportFeedback {
+                sent: 100,
+                received: 100,
+                late: 0,
+                rtt: Duration::from_millis(30),
+            },
+            now + Duration::from_secs(4),
+        );
+        assert!(recovered.target_bps > after_loss);
+        assert!(!recovered.request_keyframe);
     }
 
     #[test]

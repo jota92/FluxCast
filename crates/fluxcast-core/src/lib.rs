@@ -6,11 +6,13 @@
 #![forbid(unsafe_code)]
 
 pub mod ice;
+pub mod metrics;
 pub mod pipeline;
 pub mod simulation;
 mod stun;
 pub mod turn;
 pub use ice::{IceAgent, IceCredentials, InboundCheck};
+pub use metrics::{SessionMetrics, relay_metrics_to_prometheus};
 pub use pipeline::{
     Delivered, FEC_SYMBOL_SIZE, FecBlock, FecPolicy, MediaReceiver, MediaSender,
     decode_fec_payload, decode_feedback_payload, decode_nack_payload, encode_fec_payload,
