@@ -4,9 +4,11 @@ use std::thread;
 use std::time::{Duration, Instant};
 
 use fluxcast_core::{
-    AccessUnit, MAX_MEDIA_PAYLOAD, MediaKind, Reassembler, UdpEndpoint, fragment_access_unit,
+    AccessUnit, MAX_MEDIA_PAYLOAD, MediaKind, Reassembler, SecureUdpEndpoint, UdpEndpoint,
+    fragment_access_unit,
 };
-use fluxcast_proto::Header;
+use fluxcast_proto::{Header, PacketType};
+use fluxcast_security::Identity;
 
 fn main() {
     let args = env::args().skip(1).collect::<Vec<_>>();
@@ -23,12 +25,43 @@ fn run(args: &[String]) -> Result<(), Box<dyn std::error::Error>> {
         Some("receive") => receive(&args[1..]),
         Some("relay") => relay(&args[1..]),
         Some("demo") => demo(),
+        Some("secure-demo") => secure_demo(),
         Some("help") | None => {
             print_help();
             Ok(())
         }
         Some(command) => Err(format!("unknown command `{command}`").into()),
     }
+}
+
+fn secure_demo() -> Result<(), Box<dyn std::error::Error>> {
+    let publisher = Identity::generate();
+    let subscriber = Identity::generate();
+    let sender = SecureUdpEndpoint::bind(
+        "127.0.0.1:0".parse()?,
+        publisher.establish(subscriber.public_key(), 77, 1),
+    )?;
+    let mut receiver = SecureUdpEndpoint::bind(
+        "127.0.0.1:0".parse()?,
+        subscriber.establish(publisher.public_key(), 77, 1),
+    )?;
+    let mut header = Header::new(PacketType::Media);
+    header.session_id = 77;
+    header.epoch = 1;
+    header.sequence_number = 1;
+    sender.send(receiver.local_addr()?, header, b"encrypted access unit")?;
+    let until = Instant::now() + Duration::from_secs(1);
+    let mut buffer = vec![0; 1200];
+    while Instant::now() < until {
+        if let Some((actual, payload, _)) = receiver.receive(&mut buffer)? {
+            assert_eq!(actual.sequence_number, 1);
+            assert_eq!(payload, b"encrypted access unit");
+            println!("secure UDP demo succeeded: authenticated encrypted FCDP payload");
+            return Ok(());
+        }
+        thread::sleep(Duration::from_millis(1));
+    }
+    Err("timed out waiting for secure UDP packet".into())
 }
 
 fn relay(args: &[String]) -> Result<(), Box<dyn std::error::Error>> {
@@ -138,6 +171,6 @@ fn demo() -> Result<(), Box<dyn std::error::Error>> {
 
 fn print_help() {
     println!(
-        "FluxCast pre-alpha diagnostic CLI\n\nCommands:\n  send <host:port> <text>                 send a deadline-aware test access unit\n  receive <host:port>                     receive test access units for 30 seconds\n  relay <bind> <subscriber-host:port>     validate and forward FCDP datagrams\n  demo                                    run an in-process UDP fragmentation/reassembly demo"
+        "FluxCast pre-alpha diagnostic CLI\n\nCommands:\n  send <host:port> <text>                 send a deadline-aware test access unit\n  receive <host:port>                     receive test access units for 30 seconds\n  relay <bind> <subscriber-host:port>     validate and forward FCDP datagrams\n  demo                                    run an in-process UDP fragmentation/reassembly demo\n  secure-demo                             run an authenticated encrypted UDP demo"
     );
 }

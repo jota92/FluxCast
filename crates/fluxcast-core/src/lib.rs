@@ -13,6 +13,7 @@ use std::time::{Duration, Instant};
 use fluxcast_proto::{
     DEFAULT_MAX_DATAGRAM_LEN, DecodeError, EncodeError, HEADER_LEN, Header, PacketType,
 };
+use fluxcast_security::{SecurityError, Session};
 
 /// Largest payload that fits in the default non-fragmenting UDP budget.
 pub const MAX_MEDIA_PAYLOAD: usize = DEFAULT_MAX_DATAGRAM_LEN - HEADER_LEN;
@@ -409,6 +410,90 @@ impl UdpEndpoint {
         self.socket.local_addr()
     }
 }
+
+/// UDP transport which accepts only authenticated encrypted FCDP datagrams.
+/// The caller owns session establishment and rotates the session for each epoch.
+pub struct SecureUdpEndpoint {
+    endpoint: UdpEndpoint,
+    session: Session,
+}
+
+impl SecureUdpEndpoint {
+    /// Binds a nonblocking secure UDP endpoint.
+    ///
+    /// # Errors
+    ///
+    /// Returns the underlying UDP bind or configuration error.
+    pub fn bind(address: SocketAddr, session: Session) -> io::Result<Self> {
+        Ok(Self {
+            endpoint: UdpEndpoint::bind(address)?,
+            session,
+        })
+    }
+    /// Encrypts and sends one FCDP payload.
+    ///
+    /// # Errors
+    ///
+    /// Returns a security error for invalid packets or an I/O error for send failures.
+    pub fn send(
+        &self,
+        destination: SocketAddr,
+        header: Header,
+        payload: &[u8],
+    ) -> Result<usize, SecureTransportError> {
+        Ok(self
+            .endpoint
+            .send(destination, &self.session.seal_fcdp(header, payload)?)?)
+    }
+    /// Receives, authenticates, replay-checks, and decrypts one FCDP payload.
+    ///
+    /// # Errors
+    ///
+    /// Returns malformed, unauthenticated, replayed, or I/O datagrams as errors.
+    pub fn receive(
+        &mut self,
+        buffer: &mut [u8],
+    ) -> Result<Option<(Header, Vec<u8>, SocketAddr)>, SecureTransportError> {
+        match self.endpoint.socket.recv_from(buffer) {
+            Ok((length, peer)) => {
+                let (header, payload) = self.session.open_fcdp(&buffer[..length])?;
+                Ok(Some((header, payload, peer)))
+            }
+            Err(error) if error.kind() == io::ErrorKind::WouldBlock => Ok(None),
+            Err(error) => Err(SecureTransportError::Io(error)),
+        }
+    }
+    /// Returns the bound address.
+    ///
+    /// # Errors
+    ///
+    /// Returns the underlying socket query error.
+    pub fn local_addr(&self) -> io::Result<SocketAddr> {
+        self.endpoint.local_addr()
+    }
+}
+
+#[derive(Debug)]
+pub enum SecureTransportError {
+    Io(io::Error),
+    Security(SecurityError),
+}
+impl From<io::Error> for SecureTransportError {
+    fn from(value: io::Error) -> Self {
+        Self::Io(value)
+    }
+}
+impl From<SecurityError> for SecureTransportError {
+    fn from(value: SecurityError) -> Self {
+        Self::Security(value)
+    }
+}
+impl std::fmt::Display for SecureTransportError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "secure UDP transport error: {self:?}")
+    }
+}
+impl std::error::Error for SecureTransportError {}
 
 #[derive(Debug)]
 pub enum CoreError {

@@ -10,6 +10,7 @@ description = "Command-line diagnostics for FluxCast."
 [dependencies]
 fluxcast-proto = { path = "../fluxcast-proto", version = "0.1.0" }
 fluxcast-core = { path = "../fluxcast-core", version = "0.1.0" }
+fluxcast-security = { path = "../fluxcast-security", version = "0.1.0" }
 
 [lints]
 workspace = true
