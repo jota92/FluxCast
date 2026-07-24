@@ -101,6 +101,7 @@ pub struct RelaySubscriptions {
     forwarded_bytes: u64,
     expired_subscriptions: u64,
     send_failures: HashMap<(u64, SocketAddr), u8>,
+    send_failures_total: u64,
 }
 
 /// A stable snapshot suitable for a metrics endpoint or health probe.
@@ -111,6 +112,8 @@ pub struct RelayMetrics {
     pub forwarded_packets: u64,
     pub forwarded_bytes: u64,
     pub expired_subscriptions: u64,
+    /// Datagram sends rejected by the local operating system.
+    pub send_failures: u64,
 }
 
 /// Authenticated candidate-path state used for network migration.
@@ -230,6 +233,7 @@ impl RelaySubscriptions {
     /// Records a failed send. Three consecutive failures remove the stale
     /// subscriber so a broken viewer cannot keep consuming relay work.
     pub fn record_send_failure(&mut self, session_id: u64, subscriber: SocketAddr) -> bool {
+        self.send_failures_total = self.send_failures_total.saturating_add(1);
         let key = (session_id, subscriber);
         let failures = self.send_failures.entry(key).or_default();
         *failures = failures.saturating_add(1);
@@ -248,6 +252,7 @@ impl RelaySubscriptions {
             forwarded_packets: self.forwarded_packets,
             forwarded_bytes: self.forwarded_bytes,
             expired_subscriptions: self.expired_subscriptions,
+            send_failures: self.send_failures_total,
         }
     }
 }
@@ -1166,6 +1171,21 @@ mod tests {
         let metrics = relay.metrics();
         assert_eq!(metrics.active_sessions, 0);
         assert_eq!(metrics.expired_subscriptions, 2);
+    }
+    #[test]
+    fn relay_evicts_only_the_subscriber_that_repeatedly_fails() {
+        let now = Instant::now();
+        let failing = "127.0.0.1:30001".parse().unwrap();
+        let healthy = "127.0.0.1:30002".parse().unwrap();
+        let mut relay = RelaySubscriptions::new();
+        relay.subscribe(42, failing, now + Duration::from_secs(1));
+        relay.subscribe(42, healthy, now + Duration::from_secs(1));
+
+        assert!(!relay.record_send_failure(42, failing));
+        assert!(!relay.record_send_failure(42, failing));
+        assert!(relay.record_send_failure(42, failing));
+        assert_eq!(relay.recipients(42, now), vec![healthy]);
+        assert_eq!(relay.metrics().send_failures, 3);
     }
     #[test]
     fn migration_switches_only_for_stale_or_materially_better_path() {

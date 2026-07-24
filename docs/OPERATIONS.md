@@ -33,6 +33,9 @@ size limits. Never place the token in a public URL, source file, or log.
 - Restrict inbound sources to the known publisher or receiver addresses.
 - Give remote hosts temporary credentials and stop them after the test.
 - Record packet loss, late drops, retransmissions, and relay subscriber counts.
+- Record `fluxcast_relay_send_failures_total`; after three consecutive local
+  send failures, the relay removes only that subscriber and continues serving
+  the remaining viewers.
 - Remove test credentials and firewall rules when the experiment ends.
 
 ## Before sharing a deployment

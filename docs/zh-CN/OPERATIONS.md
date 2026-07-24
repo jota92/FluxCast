@@ -30,6 +30,7 @@ Gateway 只绑定 loopback。若要对外提供，必须在前面配置 TLS、Or
 - 将来源限制为已知的 Publisher / Receiver。
 - 使用临时凭据并在结束后撤销。
 - 记录丢包、过期丢弃、重传和 Relay 订阅数。
+- 记录 `fluxcast_relay_send_failures_total`。同一订阅者连续三次本地发送失败后，Relay 只移除该订阅者，并继续服务其他观看者。
 - 实验结束后移除防火墙规则和凭据。
 
 开始前请运行[快速开始](GETTING_STARTED.md)中的验证，并阅读 [SECURITY.md](../../SECURITY.md)。

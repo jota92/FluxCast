@@ -159,6 +159,13 @@ pub fn relay_metrics_to_prometheus(
     );
     gauge(
         &mut out,
+        "fluxcast_relay_send_failures_total",
+        "Datagram sends rejected while forwarding to subscribers",
+        "",
+        as_f64(metrics.send_failures),
+    );
+    gauge(
+        &mut out,
         "fluxcast_relay_cpu_percent",
         "Relay process CPU usage percent",
         "",
@@ -264,9 +271,11 @@ mod tests {
             forwarded_packets: 1000,
             forwarded_bytes: 1_200_000,
             expired_subscriptions: 3,
+            send_failures: 4,
         };
         let text = relay_metrics_to_prometheus(&relay, 12.5, 48.0);
         assert!(text.contains("fluxcast_relay_active_subscribers 7"));
         assert!(text.contains("fluxcast_relay_cpu_percent 12.5"));
+        assert!(text.contains("fluxcast_relay_send_failures_total 4"));
     }
 }

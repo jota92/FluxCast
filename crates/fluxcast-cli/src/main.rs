@@ -235,8 +235,20 @@ fn relay(args: &[String]) -> Result<(), Box<dyn std::error::Error>> {
         match endpoint.receive(&mut buffer)? {
             Some((header, length, _)) => {
                 for subscriber in registry.recipients(header.session_id, Instant::now()) {
-                    endpoint.send(subscriber, &buffer[..length])?;
-                    registry.record_forward(length);
+                    match endpoint.send(subscriber, &buffer[..length]) {
+                        Ok(_) => registry.record_forward(length),
+                        // One bad viewer must not stop a relay serving the
+                        // other subscribers. The registry evicts it after
+                        // repeated local send failures.
+                        Err(error) => {
+                            let evicted =
+                                registry.record_send_failure(header.session_id, subscriber);
+                            eprintln!(
+                                "relay send to {subscriber} failed: {error}{}",
+                                if evicted { "; subscriber evicted" } else { "" }
+                            );
+                        }
+                    }
                 }
             }
             None => thread::sleep(Duration::from_millis(1)),

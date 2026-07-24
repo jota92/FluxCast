@@ -4,6 +4,10 @@ All notable changes will be recorded here.
 
 ## 0.1.0 — unreleased
 
+- Relay forwarding now isolates local send failures to the affected subscriber,
+  evicts it after three consecutive failures, and reports
+  `fluxcast_relay_send_failures_total`.
+
 - Added FCDP v0.1 packet framing and validation.
 - Added access-unit fragmentation/reassembly, deadline scheduling, XOR FEC, retransmission cache, bitrate controller, and UDP diagnostics.
 - Added a deterministic loss/reordering/expiry simulator (`fluxcast-core::simulation`) and a `fluxcast-cli simulate` command that reports frame delivery and FEC recovery rates.
