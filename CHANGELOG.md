@@ -4,6 +4,9 @@ All notable changes will be recorded here.
 
 ## 0.1.0 — unreleased
 
+- Added canonical packet-vector tests for the Go and Swift SDKs, plus a
+  time-bounded opt-in Kotlin vector runner.
+
 - Added authenticated ICE tie-breaker role-conflict handling with an automatic
   role change for the losing agent and a retryable 487 response.
 

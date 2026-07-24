@@ -51,7 +51,18 @@ public enum FCDP {
 
     private static func encodeWithoutCRC(header: FCDPHeader, payloadLength: Int) throws -> [UInt8] {
         guard header.priority <= 3, header.fragmentCount > 0, header.fragmentIndex < header.fragmentCount, payloadLength <= Int(UInt16.max) else { throw FluxCastError.invalidFragment }
-        return [70, 67, 1, header.packetType, header.flags, 0] + u64(header.sessionID) + u16(header.streamID) + u16(header.epoch) + u32(header.sequence) + u32(header.frameID) + u16(header.fragmentIndex) + u16(header.fragmentCount) + [header.priority] + u16(header.deadlineMS) + u16(UInt16(payloadLength))
+        var bytes: [UInt8] = [70, 67, 1, header.packetType, header.flags, 0]
+        bytes += u64(header.sessionID)
+        bytes += u16(header.streamID)
+        bytes += u16(header.epoch)
+        bytes += u32(header.sequence)
+        bytes += u32(header.frameID)
+        bytes += u16(header.fragmentIndex)
+        bytes += u16(header.fragmentCount)
+        bytes.append(header.priority)
+        bytes += u16(header.deadlineMS)
+        bytes += u16(UInt16(payloadLength))
+        return bytes
     }
 
     private static func u16(_ value: UInt16) -> [UInt8] { [UInt8(value >> 8), UInt8(value & 255)] }

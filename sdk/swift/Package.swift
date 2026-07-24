@@ -4,5 +4,8 @@ import PackageDescription
 let package = Package(
     name: "FluxCast",
     products: [.library(name: "FluxCast", targets: ["FluxCast"])],
-    targets: [.target(name: "FluxCast")]
+    targets: [
+        .target(name: "FluxCast"),
+        .testTarget(name: "FluxCastTests", dependencies: ["FluxCast"]),
+    ]
 )

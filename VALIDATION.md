@@ -3,6 +3,17 @@
 This document records repeatable checks; it is not a claim that FluxCast is
 production-ready.
 
+## Primary product validation
+
+The primary product objective is ultra-low-latency delivery that remains
+usable on unstable mobile networks. Completion evidence for that objective
+must use a documented, repeatable impairment profile and publish all of the
+following: connection success, media interruption during a path change,
+latency distribution, audio continuity, and delivered video frames. The
+current deterministic simulator verifies selected loss, reordering, FEC, and
+deadline behavior; it is not yet evidence for a mobile handoff or sustained
+real-world delivery claim.
+
 ## Local media round trip
 
 On 2026-07-24, FFmpeg generated one-second H.264 Annex-B and Ogg Opus inputs.

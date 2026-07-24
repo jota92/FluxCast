@@ -48,4 +48,25 @@ for (const v of data.vectors) {
 console.log(`  ${data.vectors.length} vectors matched`);
 JS
 
-echo "All SDKs reproduce the canonical FCDP v0.1 test vectors."
+echo "== Go SDK =="
+(
+  cd "$root/sdk/go"
+  go test ./...
+)
+
+echo "== Swift SDK =="
+swift test --package-path "$root/sdk/swift"
+
+echo "== Kotlin SDK =="
+if [[ "${FLUXCAST_VERIFY_KOTLIN:-0}" == "1" ]]; then
+  tmp_dir=$(mktemp -d)
+  trap 'rm -rf "$tmp_dir"' EXIT
+  timeout 120 kotlinc "$root/sdk/kotlin/src/main/kotlin/FluxCastFcdp.kt" \
+    "$root/sdk/kotlin/src/test/kotlin/VectorTest.kt" \
+    -include-runtime -d "$tmp_dir/vectors.jar"
+  java -jar "$tmp_dir/vectors.jar" "$vectors"
+else
+  echo "  skipped (set FLUXCAST_VERIFY_KOTLIN=1 to enable the local Kotlin toolchain test)"
+fi
+
+echo "All enabled SDKs reproduce the canonical FCDP v0.1 test vectors."

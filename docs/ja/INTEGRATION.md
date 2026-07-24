@@ -70,3 +70,5 @@ cc -O2 examples/c/send_fcdp.c -o /tmp/fluxcast-send
 4. Gateway や Relay を公開する場合は、認証、TLS、Origin 制限、レート制限をアプリケーション側で用意します。
 
 正確なバイト形式は [FCDP 仕様](../../spec/fcdp-v0.1.md) と `spec/` のベクトルを参照してください。
+
+`bash scripts/verify_vectors.sh` は Rust、Python、Node.js、Go、Swift の共通ベクトルを検証します。Kotlin も検証する環境では、`FLUXCAST_VERIFY_KOTLIN=1 bash scripts/verify_vectors.sh` を実行してください。Kotlin の実行には 120 秒の上限があります。

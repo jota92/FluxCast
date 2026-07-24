@@ -1,6 +1,6 @@
 # FluxCast
 
-> A Rust implementation of deadline-aware UDP primitives for low-latency media delivery.
+> A Rust media transport focused on keeping ultra-low-latency streams alive on unstable mobile networks.
 
 [日本語](docs/ja/README.md) | [简体中文](docs/zh-CN/README.md) | **English**
 
@@ -15,7 +15,11 @@ cargo test --workspace
 cargo run -p fluxcast-cli -- demo
 ```
 
-FluxCast prioritizes the media that can still improve what a viewer sees or hears: audio and keyframes first; expired video is discarded instead of increasing latency. Its FCDP packet format is currently a draft and may change before a stable release.
+FluxCast's product priority is clear: keep an ultra-low-latency stream usable
+through loss, jitter, NAT changes, and mobile-network handoffs. It prioritizes
+the media that can still improve what a viewer sees or hears: audio and
+keyframes first; expired video is discarded instead of increasing latency. Its
+FCDP packet format is currently a draft and may change before a stable release.
 
 ## What works today
 
@@ -25,7 +29,7 @@ The current implementation also includes a cohesive deadline-aware media pipelin
 
 For connectivity it provides RFC 5389 STUN server-reflexive discovery, a TURN client (RFC 5766/8489) for relayed NAT traversal, and an authenticated ICE connectivity-check agent (RFC 8445) with `USE-CANDIDATE` nomination, ordered-candidate retry, and credential restart. `SecurePathEndpoint` promotes a new active path only after an encrypted probe succeeds. Security is a signed forward-secret handshake (Ed25519 + ephemeral X25519 + HKDF) with ChaCha20-Poly1305 packet protection and replay rejection. It also ships a WebSocket→UDP browser gateway (validated live and by `scripts/test_gateway.sh`), multi-subscriber relay leases that isolate repeated failed sends to one viewer, an OpenMetrics diagnostics module, and CLI H.264 Annex-B / Ogg Opus send-and-recover paths.
 
-A deterministic loss/reordering/expiry simulator (`fluxcast-cli simulate`) demonstrates FEC recovery without a live network; `spec/test-vectors.json` and `spec/control-vectors.json` pin canonical FCDP framing and control payloads, with reproducible Rust, Python, and Node.js checks. The project is still pre-alpha: a full ICE state machine, connection migration, stable SDK APIs, production relay control-plane persistence, measured glass-to-glass performance, and an independent security review are unfinished. Do not use it for production or confidential media.
+A deterministic loss/reordering/expiry simulator (`fluxcast-cli simulate`) demonstrates FEC recovery without a live network; `spec/test-vectors.json` and `spec/control-vectors.json` pin canonical FCDP framing and control payloads, with reproducible Rust, Python, Node.js, Go, and Swift checks. Kotlin uses the same checked-in vector test when its local toolchain is explicitly enabled. The project is still pre-alpha: a full ICE state machine, connection migration, stable SDK APIs, production relay control-plane persistence, measured glass-to-glass performance, and an independent security review are unfinished. Do not use it for production or confidential media.
 
 ## Quick start
 
@@ -87,7 +91,17 @@ Japanese and Simplified Chinese quick-start guides are available in
 [`docs/ja/`](docs/ja/GETTING_STARTED.md) and
 [`docs/zh-CN/`](docs/zh-CN/GETTING_STARTED.md).
 
-## Direction
+## Product focus and proof
+
+FluxCast is being built first for **ultra-low-latency delivery that stays
+connected on unstable mobile networks**. This is a measurable release goal,
+not a marketing claim. A release in this direction must publish repeatable
+results for connection continuity, handoff interruption time, end-to-end
+latency, and delivered media quality under controlled loss, jitter, bandwidth,
+and path-change conditions. See [the roadmap](ROADMAP.md) and [the validation
+record](VALIDATION.md) for the current gates and evidence.
+
+## Components
 
 - `fluxcast-proto`: versioned FCDP packet framing and validation.
 - `fluxcast-core`: access-unit fragmentation, expiry scheduling, FEC, reassembly, retransmission cache, congestion control, the `MediaSender`/`MediaReceiver` pipeline, STUN/TURN/ICE connectivity (`stun`/`turn`/`ice`), Prometheus metrics, an impairment simulator, and a blocking UDP endpoint.

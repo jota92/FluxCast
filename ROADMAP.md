@@ -1,5 +1,22 @@
 # Roadmap
 
+## Product priority
+
+FluxCast's first product objective is **ultra-low-latency media delivery that
+remains usable on unstable mobile networks**. Work is ordered by its impact on
+that objective: connection continuity across path changes, timely delivery
+under loss and jitter, and evidence from repeatable impaired-network tests.
+Features that do not improve these outcomes are secondary until the objective
+has published evidence.
+
+The release evidence must report, with reproducible test profiles:
+
+- connection success and continuity during a network-path change;
+- interruption time from detected path failure to resumed media;
+- end-to-end latency distribution, not only an average;
+- delivered audio continuity and video-frame delivery under loss, jitter, and
+  bandwidth limits.
+
 ## M0 — specification and local interoperability (complete)
 
 - [x] Rust workspace and packet parser foundation
@@ -25,6 +42,9 @@ measured performance on real hardware and networks.
 - [x] Conservative AIMD bitrate controller with keyframe-request feedback
 - [ ] 1080p60 H.264 + Opus capture/encoder integration in an example app
 - [ ] Measured LAN glass-to-glass ≤150 ms and continuous playback at 1% loss
+- [ ] Reproducible mobile-network impairment profile: loss, jitter, bandwidth
+      change, and path interruption, with published continuity and latency
+      results
 
 ## M2 — connectivity and relay (in progress)
 
@@ -41,6 +61,8 @@ measured performance on real hardware and networks.
       credential restart, and tie-breaker role-conflict handling are implemented;
       `SecurePathEndpoint` switches its active path after an encrypted probe.
 - [ ] Cross-network Publisher→Relay→Subscriber performance measurements
+- [ ] Measured network-path handoff: encrypted path validation, resumed media,
+      interruption time, and no unauthenticated-path promotion
 
 ## Next milestones
 - M3: stable C ABI, Python/Node/Swift/Kotlin/Go SDKs, browser support

@@ -81,9 +81,11 @@ For your own code, import `fluxcast.fcdp` in Python or
   /tmp/fluxcast-send 127.0.0.1 9000 hello
   ```
 
-These modules share the canonical packet vectors. Verify Python and Node.js
-against the Rust reference with `bash scripts/verify_vectors.sh` before relying
-on an integration.
+These modules share the canonical packet vectors. `bash scripts/verify_vectors.sh`
+verifies Rust, Python, Node.js, Go, and Swift together. To include Kotlin on a
+machine with a working local compiler, run
+`FLUXCAST_VERIFY_KOTLIN=1 bash scripts/verify_vectors.sh`; the Kotlin run has a
+120-second limit so a local toolchain issue cannot block the other SDK checks.
 
 ## Integration rules
 

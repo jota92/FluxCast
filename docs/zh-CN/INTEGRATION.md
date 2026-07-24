@@ -61,3 +61,5 @@ cc -O2 examples/c/send_fcdp.c -o /tmp/fluxcast-send
 4. 对外部署 Gateway 或 Relay 时，应用必须提供认证、TLS、Origin 限制与限流。
 
 精确字节格式请看 [FCDP 规范](../../spec/fcdp-v0.1.md) 与 `spec/` 中的向量文件。
+
+`bash scripts/verify_vectors.sh` 会验证 Rust、Python、Node.js、Go 与 Swift 的共同向量。如需在本地编译器可用的环境中加入 Kotlin，请执行 `FLUXCAST_VERIFY_KOTLIN=1 bash scripts/verify_vectors.sh`；Kotlin 步骤有 120 秒上限。
