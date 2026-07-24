@@ -1,0 +1,15 @@
+<!doctype html><meta charset="utf-8"><title>FluxCast Gateway</title>
+<p>FluxCast encrypted FCDP browser gateway</p>
+<p id="state">Disconnected</p>
+<script>
+// The application supplies encrypted FCDP datagrams as Uint8Array values.
+// This page intentionally contains no media keys and no UDP destination field.
+const token = new URLSearchParams(location.search).get('token');
+const socket = new WebSocket(`ws://${location.host}/fcdp?token=${encodeURIComponent(token ?? '')}`);
+socket.binaryType = 'arraybuffer';
+socket.onopen = () => document.querySelector('#state').textContent = 'Connected';
+socket.onclose = () => document.querySelector('#state').textContent = 'Disconnected';
+window.fluxcastSend = packet => socket.readyState === WebSocket.OPEN && socket.send(packet);
+window.fluxcastReceive = null;
+socket.onmessage = event => window.fluxcastReceive?.(new Uint8Array(event.data));
+</script>
