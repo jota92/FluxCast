@@ -84,6 +84,7 @@ pub struct RelaySubscriptions {
     forwarded_packets: u64,
     forwarded_bytes: u64,
     expired_subscriptions: u64,
+    send_failures: HashMap<(u64, SocketAddr), u8>,
 }
 
 /// A stable snapshot suitable for a metrics endpoint or health probe.
@@ -209,6 +210,18 @@ impl RelaySubscriptions {
     pub fn record_forward(&mut self, bytes: usize) {
         self.forwarded_packets = self.forwarded_packets.saturating_add(1);
         self.forwarded_bytes = self.forwarded_bytes.saturating_add(bytes as u64);
+    }
+    /// Records a failed send. Three consecutive failures remove the stale
+    /// subscriber so a broken viewer cannot keep consuming relay work.
+    pub fn record_send_failure(&mut self, session_id: u64, subscriber: SocketAddr) -> bool {
+        let key = (session_id, subscriber);
+        let failures = self.send_failures.entry(key).or_default();
+        *failures = failures.saturating_add(1);
+        if *failures >= 3 {
+            self.send_failures.remove(&key);
+            return self.unsubscribe(session_id, subscriber);
+        }
+        false
     }
 
     #[must_use]
