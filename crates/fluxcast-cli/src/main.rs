@@ -6,9 +6,9 @@ use std::time::{Duration, Instant};
 
 use fluxcast_core::{
     AccessUnit, ChannelModel, Delivered, FecPolicy, MAX_MEDIA_PAYLOAD, MediaKind, MediaReceiver,
-    MediaSender, Reassembler, RelaySubscriptions, SecureUdpEndpoint, TurnClient, TurnCredentials,
-    UdpEndpoint, discover_server_reflexive_candidate, fragment_access_unit, simulate_delivery,
-    split_h264_annex_b, split_ogg_pages,
+    MediaSender, Reassembler, RelaySubscriptions, SecureUdpEndpoint, SessionMetrics, TurnClient,
+    TurnCredentials, UdpEndpoint, discover_server_reflexive_candidate, fragment_access_unit,
+    relay_metrics_to_prometheus, simulate_delivery, split_h264_annex_b, split_ogg_pages,
 };
 use fluxcast_proto::{Header, PacketType};
 use fluxcast_security::Identity;
@@ -240,7 +240,13 @@ fn relay(args: &[String]) -> Result<(), Box<dyn std::error::Error>> {
             None => thread::sleep(Duration::from_millis(1)),
         }
         if Instant::now() >= next_metrics {
-            println!("relay metrics: {:?}", registry.metrics());
+            // Prometheus/OpenMetrics text for scraping. CPU/memory are left at 0
+            // here; a supervisor process supplies real process gauges.
+            print!(
+                "{}",
+                relay_metrics_to_prometheus(&registry.metrics(), 0.0, 0.0)
+            );
+            std::io::stdout().flush()?;
             next_metrics += Duration::from_secs(10);
         }
     }
@@ -531,6 +537,21 @@ fn pipeline_demo(args: &[String]) -> Result<(), Box<dyn std::error::Error>> {
     println!("  recovered by FEC:    {recovered}");
     println!("  recovered by NACK:   {nack_healed}");
     println!("  undelivered:         {dropped}");
+
+    let metrics = SessionMetrics {
+        media_expected: u64::from(sent),
+        media_received: u64::from(sent - lost),
+        frames_fec_recovered: u64::from(recovered),
+        frames_nack_recovered: u64::from(nack_healed),
+        frames_late_dropped: 0,
+        frames_delivered: u64::from(clean + recovered + nack_healed),
+        frames_total: u64::from(frames),
+        ..SessionMetrics::default()
+    };
+    println!(
+        "\n# Prometheus metrics (spec §11)\n{}",
+        metrics.to_prometheus("demo")
+    );
     Ok(())
 }
 
