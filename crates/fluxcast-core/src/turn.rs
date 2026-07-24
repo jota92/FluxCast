@@ -14,12 +14,9 @@ use std::io;
 use std::net::{SocketAddr, UdpSocket};
 use std::time::Duration;
 
-use hmac::{Hmac, Mac};
 use md5::{Digest, Md5};
-use rand_core::{OsRng, RngCore};
-use sha1::Sha1;
 
-const MAGIC_COOKIE: u32 = 0x2112_A442;
+use crate::stun::{Message, MessageBuilder};
 
 // STUN/TURN method + class encodings (message type = method | class bits).
 const ALLOCATE_REQUEST: u16 = 0x0003;
@@ -33,10 +30,8 @@ const CHANNEL_BIND_REQUEST: u16 = 0x0009;
 const CHANNEL_BIND_SUCCESS: u16 = 0x0109;
 const DATA_INDICATION: u16 = 0x0017;
 
-// Attribute types.
+// TURN-specific attribute types (shared ones live in the `stun` module).
 const ATTR_USERNAME: u16 = 0x0006;
-const ATTR_MESSAGE_INTEGRITY: u16 = 0x0008;
-const ATTR_ERROR_CODE: u16 = 0x0009;
 const ATTR_LIFETIME: u16 = 0x000d;
 const ATTR_XOR_PEER_ADDRESS: u16 = 0x0012;
 const ATTR_DATA: u16 = 0x0013;
@@ -123,7 +118,7 @@ impl TurnClient {
         // First unauthenticated Allocate to obtain realm and nonce.
         let request = self.build_allocate(false);
         let response = self.transact(&request)?;
-        let message = Message::parse(&response)?;
+        let message = parse_message(&response)?;
         if message.kind == ALLOCATE_ERROR {
             self.absorb_challenge(&message)?;
         } else if message.kind == ALLOCATE_SUCCESS {
@@ -133,7 +128,7 @@ impl TurnClient {
         // Authenticated retry with USERNAME/REALM/NONCE/MESSAGE-INTEGRITY.
         let request = self.build_allocate(true);
         let response = self.transact(&request)?;
-        let message = Message::parse(&response)?;
+        let message = parse_message(&response)?;
         if message.kind != ALLOCATE_SUCCESS {
             return Err(server_error("TURN allocate rejected", &message));
         }
@@ -151,7 +146,7 @@ impl TurnClient {
         builder.add_xor_address(ATTR_XOR_PEER_ADDRESS, peer, &txid);
         self.finish_authenticated(&mut builder);
         let response = self.transact(&builder.finish())?;
-        let message = Message::parse(&response)?;
+        let message = parse_message(&response)?;
         if message.kind != CREATE_PERMISSION_SUCCESS {
             return Err(server_error("TURN create-permission rejected", &message));
         }
@@ -178,7 +173,7 @@ impl TurnClient {
         builder.add_xor_address(ATTR_XOR_PEER_ADDRESS, peer, &txid);
         self.finish_authenticated(&mut builder);
         let response = self.transact(&builder.finish())?;
-        let message = Message::parse(&response)?;
+        let message = parse_message(&response)?;
         if message.kind != CHANNEL_BIND_SUCCESS {
             return Err(server_error("TURN channel-bind rejected", &message));
         }
@@ -195,7 +190,7 @@ impl TurnClient {
         builder.add_attribute(ATTR_LIFETIME, &lifetime.to_be_bytes());
         self.finish_authenticated(&mut builder);
         let response = self.transact(&builder.finish())?;
-        let message = Message::parse(&response)?;
+        let message = parse_message(&response)?;
         if message.kind != REFRESH_SUCCESS {
             return Err(server_error("TURN refresh rejected", &message));
         }
@@ -281,7 +276,7 @@ impl TurnClient {
                 }
                 continue;
             }
-            let Ok(message) = Message::parse(frame) else {
+            let Some(message) = Message::parse(frame) else {
                 continue;
             };
             if message.kind == DATA_INDICATION {
@@ -377,131 +372,9 @@ impl TurnClient {
     }
 }
 
-type HmacSha1 = Hmac<Sha1>;
-
-/// Incremental STUN/TURN message builder.
-struct MessageBuilder {
-    message_type: u16,
-    transaction_id: [u8; 12],
-    attributes: Vec<u8>,
-}
-
-impl MessageBuilder {
-    fn new(message_type: u16) -> Self {
-        let mut transaction_id = [0u8; 12];
-        OsRng.fill_bytes(&mut transaction_id);
-        Self {
-            message_type,
-            transaction_id,
-            attributes: Vec::new(),
-        }
-    }
-
-    fn add_attribute(&mut self, attribute_type: u16, value: &[u8]) {
-        self.attributes
-            .extend_from_slice(&attribute_type.to_be_bytes());
-        self.attributes
-            .extend_from_slice(&u16::try_from(value.len()).unwrap_or(u16::MAX).to_be_bytes());
-        self.attributes.extend_from_slice(value);
-        // Attributes are padded to a 4-byte boundary.
-        while self.attributes.len() % 4 != 0 {
-            self.attributes.push(0);
-        }
-    }
-
-    fn add_xor_address(&mut self, attribute_type: u16, address: SocketAddr, txid: &[u8; 12]) {
-        self.add_attribute(attribute_type, &encode_xor_address(address, txid));
-    }
-
-    /// Appends MESSAGE-INTEGRITY (HMAC-SHA1) over the message so far, with the
-    /// header length set to include the integrity attribute.
-    fn add_message_integrity(&mut self, key: &[u8]) {
-        let length_with_mi = self.attributes.len() + 4 + 20;
-        let mut signed = self.header(u16::try_from(length_with_mi).unwrap_or(u16::MAX));
-        signed.extend_from_slice(&self.attributes);
-        let mut mac = HmacSha1::new_from_slice(key).expect("HMAC accepts any key length");
-        mac.update(&signed);
-        let digest = mac.finalize().into_bytes();
-        self.add_attribute(ATTR_MESSAGE_INTEGRITY, &digest);
-    }
-
-    fn header(&self, length: u16) -> Vec<u8> {
-        let mut header = Vec::with_capacity(20);
-        header.extend_from_slice(&self.message_type.to_be_bytes());
-        header.extend_from_slice(&length.to_be_bytes());
-        header.extend_from_slice(&MAGIC_COOKIE.to_be_bytes());
-        header.extend_from_slice(&self.transaction_id);
-        header
-    }
-
-    fn finish(&self) -> Vec<u8> {
-        let mut message = self.header(u16::try_from(self.attributes.len()).unwrap_or(u16::MAX));
-        message.extend_from_slice(&self.attributes);
-        message
-    }
-}
-
-/// A parsed STUN/TURN message.
-struct Message {
-    kind: u16,
-    transaction_id: [u8; 12],
-    attributes: Vec<(u16, Vec<u8>)>,
-}
-
-impl Message {
-    fn parse(bytes: &[u8]) -> io::Result<Self> {
-        if bytes.len() < 20
-            || u32::from_be_bytes([bytes[4], bytes[5], bytes[6], bytes[7]]) != MAGIC_COOKIE
-        {
-            return Err(io::Error::new(
-                io::ErrorKind::InvalidData,
-                "not a STUN message",
-            ));
-        }
-        let kind = u16::from_be_bytes([bytes[0], bytes[1]]);
-        let length = usize::from(u16::from_be_bytes([bytes[2], bytes[3]]));
-        let mut transaction_id = [0u8; 12];
-        transaction_id.copy_from_slice(&bytes[8..20]);
-        let body = bytes
-            .get(20..20 + length)
-            .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "truncated STUN body"))?;
-        let mut attributes = Vec::new();
-        let mut cursor = 0;
-        while cursor + 4 <= body.len() {
-            let attribute_type = u16::from_be_bytes([body[cursor], body[cursor + 1]]);
-            let value_len = usize::from(u16::from_be_bytes([body[cursor + 2], body[cursor + 3]]));
-            let start = cursor + 4;
-            let end = start
-                .checked_add(value_len)
-                .filter(|end| *end <= body.len())
-                .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "bad STUN attribute"))?;
-            attributes.push((attribute_type, body[start..end].to_vec()));
-            cursor = end + ((4 - (value_len % 4)) % 4);
-        }
-        Ok(Self {
-            kind,
-            transaction_id,
-            attributes,
-        })
-    }
-
-    fn attribute(&self, attribute_type: u16) -> Option<&[u8]> {
-        self.attributes
-            .iter()
-            .find(|(kind, _)| *kind == attribute_type)
-            .map(|(_, value)| value.as_slice())
-    }
-
-    fn xor_address(&self, attribute_type: u16) -> Option<SocketAddr> {
-        decode_xor_address(self.attribute(attribute_type)?, &self.transaction_id)
-    }
-
-    fn error_code(&self) -> Option<u16> {
-        let value = self.attribute(ATTR_ERROR_CODE)?;
-        let class = u16::from(*value.get(2)? & 0x7);
-        let number = u16::from(*value.get(3)?);
-        Some(class * 100 + number)
-    }
+fn parse_message(bytes: &[u8]) -> io::Result<Message> {
+    Message::parse(bytes)
+        .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "malformed STUN/TURN message"))
 }
 
 fn server_error(context: &str, message: &Message) -> io::Error {
@@ -512,111 +385,11 @@ fn server_error(context: &str, message: &Message) -> io::Error {
     )
 }
 
-fn encode_xor_address(address: SocketAddr, txid: &[u8; 12]) -> Vec<u8> {
-    let cookie = MAGIC_COOKIE.to_be_bytes();
-    let xport = address.port() ^ (MAGIC_COOKIE >> 16) as u16;
-    match address {
-        SocketAddr::V4(v4) => {
-            let mut out = vec![0, 0x01];
-            out.extend_from_slice(&xport.to_be_bytes());
-            for (byte, mask) in v4.ip().octets().iter().zip(cookie) {
-                out.push(byte ^ mask);
-            }
-            out
-        }
-        SocketAddr::V6(v6) => {
-            let mut mask = [0u8; 16];
-            mask[..4].copy_from_slice(&cookie);
-            mask[4..].copy_from_slice(txid);
-            let mut out = vec![0, 0x02];
-            out.extend_from_slice(&xport.to_be_bytes());
-            for (byte, m) in v6.ip().octets().iter().zip(mask) {
-                out.push(byte ^ m);
-            }
-            out
-        }
-    }
-}
-
-fn decode_xor_address(value: &[u8], txid: &[u8; 12]) -> Option<SocketAddr> {
-    if value.len() < 4 || value[0] != 0 {
-        return None;
-    }
-    let port = u16::from_be_bytes([value[2], value[3]]) ^ (MAGIC_COOKIE >> 16) as u16;
-    match value[1] {
-        0x01 if value.len() == 8 => {
-            let cookie = MAGIC_COOKIE.to_be_bytes();
-            let ip = std::net::Ipv4Addr::new(
-                value[4] ^ cookie[0],
-                value[5] ^ cookie[1],
-                value[6] ^ cookie[2],
-                value[7] ^ cookie[3],
-            );
-            Some(SocketAddr::from((ip, port)))
-        }
-        0x02 if value.len() == 20 => {
-            let mut mask = [0u8; 16];
-            mask[..4].copy_from_slice(&MAGIC_COOKIE.to_be_bytes());
-            mask[4..].copy_from_slice(txid);
-            let mut bytes = [0u8; 16];
-            for (out, (input, m)) in bytes.iter_mut().zip(value[4..].iter().zip(mask)) {
-                *out = input ^ m;
-            }
-            Some(SocketAddr::from((std::net::Ipv6Addr::from(bytes), port)))
-        }
-        _ => None,
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    #[test]
-    fn xor_ipv4_address_round_trips() {
-        let txid = [3u8; 12];
-        let address: SocketAddr = "203.0.113.5:51234".parse().unwrap();
-        let encoded = encode_xor_address(address, &txid);
-        assert_eq!(decode_xor_address(&encoded, &txid), Some(address));
-    }
-
-    #[test]
-    fn xor_ipv6_address_round_trips() {
-        let txid = [9u8; 12];
-        let address: SocketAddr = "[2001:db8::1]:9000".parse().unwrap();
-        let encoded = encode_xor_address(address, &txid);
-        assert_eq!(decode_xor_address(&encoded, &txid), Some(address));
-    }
-
-    #[test]
-    fn message_integrity_matches_reference_hmac() {
-        // Build an Allocate with a known key and verify the MI attribute equals
-        // an independent HMAC-SHA1 over the header (with adjusted length) and
-        // attributes preceding it.
-        let mut builder = MessageBuilder::new(ALLOCATE_REQUEST);
-        let mut transport = [0u8; 4];
-        transport[0] = REQUESTED_TRANSPORT_UDP;
-        builder.add_attribute(ATTR_REQUESTED_TRANSPORT, &transport);
-        builder.add_attribute(ATTR_USERNAME, b"user");
-        builder.add_attribute(ATTR_REALM, b"fluxcast");
-        builder.add_attribute(ATTR_NONCE, b"nonce-value");
-        let key = b"secret-key";
-        builder.add_message_integrity(key);
-        let message = builder.finish();
-
-        let parsed = Message::parse(&message).unwrap();
-        let mi = parsed.attribute(ATTR_MESSAGE_INTEGRITY).unwrap();
-        assert_eq!(mi.len(), 20);
-
-        // Recompute over everything up to the MI attribute.
-        let mi_offset = message.len() - 24;
-        let mut signed = message[..mi_offset].to_vec();
-        let claimed_len = (mi_offset - 20) + 24;
-        signed[2..4].copy_from_slice(&u16::try_from(claimed_len).unwrap().to_be_bytes());
-        let mut mac = HmacSha1::new_from_slice(key).unwrap();
-        mac.update(&signed);
-        assert_eq!(mac.finalize().into_bytes().as_slice(), mi);
-    }
+    const ATTR_ERROR_CODE: u16 = 0x0009;
 
     #[test]
     fn parses_error_code_from_a_401_challenge() {
@@ -628,12 +401,6 @@ mod tests {
         let message = Message::parse(&bytes).unwrap();
         assert_eq!(message.error_code(), Some(401));
         assert_eq!(message.attribute(ATTR_REALM), Some(b"fluxcast".as_slice()));
-    }
-
-    #[test]
-    fn rejects_non_stun_bytes() {
-        assert!(Message::parse(&[0u8; 8]).is_err());
-        assert!(Message::parse(&[0xff; 40]).is_err());
     }
 
     #[test]

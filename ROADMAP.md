@@ -26,10 +26,21 @@ measured performance on real hardware and networks.
 - [ ] 1080p60 H.264 + Opus capture/encoder integration in an example app
 - [ ] Measured LAN glass-to-glass ≤150 ms and continuous playback at 1% loss
 
-## Next milestones
+## M2 — connectivity and relay (in progress)
 
-- M2: ICE/STUN/TURN connectivity, no-transcode authenticated fan-out Relay,
-  authorization, metrics, and cross-network tests.
+- [x] STUN server-reflexive discovery (`discover_server_reflexive_candidate`)
+- [x] TURN relay allocation with long-term auth, permissions, channel binding,
+      and `Data`-indication relaying (`fluxcast-core::turn`), validated against
+      coturn on Azure
+- [x] Authenticated ICE connectivity checks and `USE-CANDIDATE` nomination
+      (`fluxcast-core::ice`), with candidate-pair ordering (`ordered_ice_pairs`)
+- [x] No-transcode authenticated fan-out relay leases/metrics
+      (`RelaySubscriptions`)
+- [ ] Full ICE agent state machine (check scheduling, role conflict, restart)
+      wired into an end-to-end connection layer
+- [ ] Cross-network Publisher→Relay→Subscriber performance measurements
+
+## Next milestones
 - M3: stable C ABI, Python/Node/Swift/Kotlin/Go SDKs, browser support, and
   interoperation tests across supported platforms.
 - M4: adaptive bitrate and FEC, 4K pass-through, reproducible benchmarks,
