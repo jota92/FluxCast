@@ -951,6 +951,189 @@ pub struct SecureUdpEndpoint {
     session: Session,
 }
 
+/// Result of receiving one authenticated packet through a path-aware endpoint.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PathReceive {
+    pub header: Header,
+    pub payload: Vec<u8>,
+    pub peer: SocketAddr,
+    /// The newly active peer when an authenticated probe changed paths.
+    pub path_changed: Option<SocketAddr>,
+}
+
+/// Configuration for an authenticated path-aware endpoint.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SecurePathConfig {
+    pub session_id: u64,
+    pub epoch: u16,
+    pub active: SocketAddr,
+    pub initial_rtt: Duration,
+    pub stale_after: Duration,
+}
+
+/// Secure UDP endpoint that promotes a new destination only after an encrypted
+/// `PING`/`PONG` probe succeeds. It owns outbound sequence numbers so control
+/// probes cannot reuse an AEAD nonce with media traffic sent through this type.
+pub struct SecurePathEndpoint {
+    endpoint: SecureUdpEndpoint,
+    paths: PathMigration,
+    session_id: u64,
+    epoch: u16,
+    next_sequence: u32,
+    pending_probes: HashMap<u64, (SocketAddr, Instant)>,
+}
+
+impl SecurePathEndpoint {
+    /// Binds a path-aware endpoint with one initially selected destination.
+    /// `config.session_id` and `config.epoch` must match the supplied session.
+    ///
+    /// # Errors
+    ///
+    /// Returns the underlying UDP bind error.
+    pub fn bind(
+        address: SocketAddr,
+        session: Session,
+        config: SecurePathConfig,
+        now: Instant,
+    ) -> io::Result<Self> {
+        Ok(Self {
+            endpoint: SecureUdpEndpoint::bind(address, session)?,
+            paths: PathMigration::new(config.active, now, config.initial_rtt, config.stale_after),
+            session_id: config.session_id,
+            epoch: config.epoch,
+            next_sequence: 1,
+            pending_probes: HashMap::new(),
+        })
+    }
+
+    #[must_use]
+    pub const fn active(&self) -> SocketAddr {
+        self.paths.active()
+    }
+
+    /// Sends encrypted media to the currently selected path.
+    ///
+    /// # Errors
+    ///
+    /// Returns encryption or UDP send failures.
+    pub fn send_media(
+        &mut self,
+        stream_id: u16,
+        frame_id: u32,
+        priority: u8,
+        deadline_ms: u16,
+        payload: &[u8],
+    ) -> Result<usize, SecureTransportError> {
+        let header = self.next_header(
+            PacketType::Media,
+            stream_id,
+            frame_id,
+            priority,
+            deadline_ms,
+        );
+        self.endpoint.send(self.paths.active(), header, payload)
+    }
+
+    /// Sends an encrypted reachability probe to a candidate. A matching,
+    /// authenticated PONG is required before the candidate can become active.
+    ///
+    /// # Errors
+    ///
+    /// Returns encryption or UDP send failures.
+    pub fn probe(
+        &mut self,
+        candidate: SocketAddr,
+        now: Instant,
+    ) -> Result<u64, SecureTransportError> {
+        let mut token = OsRng.next_u64();
+        while self.pending_probes.contains_key(&token) {
+            token = OsRng.next_u64();
+        }
+        let header = self.next_header(PacketType::Ping, 0, 0, 0, 0);
+        self.endpoint
+            .send(candidate, header, &token.to_be_bytes())?;
+        self.pending_probes.insert(token, (candidate, now));
+        Ok(token)
+    }
+
+    /// Receives an authenticated packet, answers encrypted PING packets, and
+    /// promotes a candidate only for a matching encrypted PONG.
+    ///
+    /// # Errors
+    ///
+    /// Returns malformed, unauthenticated, replayed, encryption, or UDP errors.
+    pub fn receive(
+        &mut self,
+        buffer: &mut [u8],
+        now: Instant,
+    ) -> Result<Option<PathReceive>, SecureTransportError> {
+        let Some((header, payload, peer)) = self.endpoint.receive(buffer)? else {
+            return Ok(None);
+        };
+        if header.packet_type == PacketType::Ping && payload.len() == 8 {
+            let response = self.next_header(PacketType::Pong, 0, 0, 0, 0);
+            self.endpoint.send(peer, response, &payload)?;
+        }
+        let mut path_changed = None;
+        if header.packet_type == PacketType::Pong && payload.len() == 8 {
+            let mut token_bytes = [0_u8; 8];
+            token_bytes.copy_from_slice(&payload);
+            let token = u64::from_be_bytes(token_bytes);
+            if let Some((expected_peer, sent)) = self.pending_probes.get(&token).copied() {
+                if expected_peer == peer {
+                    self.pending_probes.remove(&token);
+                    let rtt = now.saturating_duration_since(sent);
+                    if self.paths.observe_authenticated_pong(peer, rtt, now) {
+                        path_changed = Some(peer);
+                    }
+                }
+            }
+        }
+        Ok(Some(PathReceive {
+            header,
+            payload,
+            peer,
+            path_changed,
+        }))
+    }
+
+    /// Returns the bound local address.
+    ///
+    /// # Errors
+    ///
+    /// Returns the underlying socket query error.
+    pub fn local_addr(&self) -> io::Result<SocketAddr> {
+        self.endpoint.local_addr()
+    }
+
+    fn next_header(
+        &mut self,
+        packet_type: PacketType,
+        stream_id: u16,
+        frame_id: u32,
+        priority: u8,
+        deadline_ms: u16,
+    ) -> Header {
+        let sequence_number = self.next_sequence;
+        self.next_sequence = self.next_sequence.wrapping_add(1);
+        Header {
+            version: fluxcast_proto::VERSION_0_1,
+            packet_type,
+            flags: 0,
+            session_id: self.session_id,
+            stream_id,
+            epoch: self.epoch,
+            sequence_number,
+            frame_id,
+            fragment_index: 0,
+            fragment_count: 1,
+            priority,
+            deadline_ms,
+            payload_len: 0,
+        }
+    }
+}
+
 impl SecureUdpEndpoint {
     /// Binds a nonblocking secure UDP endpoint.
     ///
@@ -1058,6 +1241,7 @@ impl std::error::Error for CoreError {}
 #[cfg(test)]
 mod tests {
     use super::*;
+    use fluxcast_security::Identity;
     #[test]
     fn reassembles_out_of_order_fragments() {
         let now = Instant::now();
@@ -1220,6 +1404,85 @@ mod tests {
             now + Duration::from_secs(4)
         ));
         assert_eq!(paths.active(), primary);
+    }
+    #[test]
+    fn encrypted_probe_promotes_only_the_authenticated_pong_path() {
+        let publisher = Identity::generate();
+        let subscriber = Identity::generate();
+        let initiator = publisher.begin_handshake(91);
+        let (welcome, subscriber_session, _) = subscriber
+            .accept_handshake(initiator.hello(), Some(publisher.public_key()))
+            .unwrap();
+        let publisher_session = initiator
+            .complete(&welcome, subscriber.public_key())
+            .unwrap();
+        let unreachable = UdpSocket::bind("127.0.0.1:0").unwrap();
+        let unreachable_addr = unreachable.local_addr().unwrap();
+        let now = Instant::now();
+        let mut receiver = SecurePathEndpoint::bind(
+            "127.0.0.1:0".parse().unwrap(),
+            subscriber_session,
+            SecurePathConfig {
+                session_id: 91,
+                epoch: 0,
+                active: unreachable_addr,
+                initial_rtt: Duration::from_millis(100),
+                stale_after: Duration::ZERO,
+            },
+            now,
+        )
+        .unwrap();
+        let receiver_addr = receiver.local_addr().unwrap();
+        let mut sender = SecurePathEndpoint::bind(
+            "127.0.0.1:0".parse().unwrap(),
+            publisher_session,
+            SecurePathConfig {
+                session_id: 91,
+                epoch: 0,
+                active: unreachable_addr,
+                initial_rtt: Duration::from_millis(100),
+                stale_after: Duration::ZERO,
+            },
+            now,
+        )
+        .unwrap();
+
+        sender.probe(receiver_addr, now).unwrap();
+        let mut receive_buffer = vec![0; 1200];
+        let until = Instant::now() + Duration::from_secs(1);
+        let mut switched = false;
+        while Instant::now() < until {
+            let current = Instant::now();
+            let _ = receiver.receive(&mut receive_buffer, current).unwrap();
+            if let Some(event) = sender.receive(&mut receive_buffer, current).unwrap() {
+                switched |= event.path_changed == Some(receiver_addr);
+            }
+            if switched {
+                break;
+            }
+            std::thread::sleep(Duration::from_millis(1));
+        }
+        assert!(switched);
+        assert_eq!(sender.active(), receiver_addr);
+
+        sender
+            .send_media(1, 1, 0, 100, b"media after migration")
+            .unwrap();
+        let mut delivered = false;
+        while Instant::now() < until {
+            if let Some(event) = receiver
+                .receive(&mut receive_buffer, Instant::now())
+                .unwrap()
+            {
+                if event.header.packet_type == PacketType::Media {
+                    assert_eq!(event.payload, b"media after migration");
+                    delivered = true;
+                    break;
+                }
+            }
+            std::thread::sleep(Duration::from_millis(1));
+        }
+        assert!(delivered);
     }
     #[test]
     fn ice_orders_direct_candidates_before_turn_relay() {

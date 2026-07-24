@@ -26,6 +26,8 @@ fluxcast-security = { path = "../FluxCast/crates/fluxcast-security" }
 
 将候选地址按优先级传给 `IceAgent::nominate_first_reachable`。它会使用已认证检查重试每个候选、提名第一个可达路径，并返回 RTT。只有通过应用的已认证信令交换新凭据后，才可调用 `IceAgent::restart`。
 
+加密数据路径切换使用 `SecurePathConfig` 与 `SecurePathEndpoint`。`probe` 会发送加密连通性探测，只有收到匹配的有效响应时才改变 `active()`。通过该 endpoint 发送媒体时使用 `send_media`，以便由 endpoint 管理全部出站序列号。
+
 ## Python 与 Node.js
 
 两者都是无依赖的封包实现，尚未单独发布包。请从已获取的仓库中使用：

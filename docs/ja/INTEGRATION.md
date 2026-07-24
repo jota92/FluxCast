@@ -31,6 +31,10 @@ fluxcast-security = { path = "../FluxCast/crates/fluxcast-security" }
 認証済みチェックで再試行し、最初に到達した経路を nomination して RTT を返します。
 `IceAgent::restart` は、認証済みのシグナリング経路で新しい資格情報を交換してから使います。
 
+暗号化済みデータ経路の切替には、`SecurePathConfig` と `SecurePathEndpoint` を使います。
+`probe` は暗号化された到達確認を送り、有効な応答を受けたときだけ `active()` を変更します。
+この endpoint 経由のメディアは `send_media` で送り、送信シーケンス番号を endpoint に管理させます。
+
 ## Python と Node.js
 
 いずれも依存のないフレーミング実装です。パッケージ配布はまだ行っていないため、

@@ -22,9 +22,10 @@ untrusted networks.
 ## Known release blockers
 
 - No third-party cryptographic/protocol audit has been performed.
-- The ICE layer has authenticated ordered retry and credential restart, but it
-  does not yet provide candidate gathering, role-conflict handling, automatic
-  selected-path migration, or an application control plane for relay fallback.
+- The ICE layer has authenticated ordered retry and credential restart, while
+  `SecurePathEndpoint` promotes paths only after encrypted probes. Candidate
+  gathering, role-conflict handling, and an application control plane for relay
+  fallback remain unfinished.
 - No automatic key rotation, certificate lifecycle, or persistent
   authorization service exists yet.
 - The diagnostic CLI uses plaintext FCDP unless a caller constructs a secure

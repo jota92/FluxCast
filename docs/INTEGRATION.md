@@ -39,6 +39,12 @@ checks, nominates the first reachable path, and returns its measured RTT.
 Call `IceAgent::restart` only after exchanging replacement credentials through
 your application's authenticated signalling channel.
 
+For encrypted data-plane migration, use `SecurePathEndpoint` with a
+`SecurePathConfig`. Its `probe` method sends an encrypted reachability probe;
+the endpoint automatically answers valid probes and changes `active()` only
+after it receives the matching encrypted response. Use `send_media` for media
+sent through this endpoint so it owns all outbound sequence numbers.
+
 ## Python and Node.js
 
 The Python and Node modules are dependency-free framing references. They are

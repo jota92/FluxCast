@@ -37,9 +37,9 @@ measured performance on real hardware and networks.
 - [x] No-transcode authenticated fan-out relay leases/metrics
       (`RelaySubscriptions`)
 - [ ] Complete ICE agent state machine: candidate gathering, role-conflict
-      handling, and automatic selected-path migration wired into an end-to-end
-      connection layer. Ordered authenticated retry and credential restart are
-      implemented.
+      handling, and automatic connection management from gathered candidates.
+      Ordered authenticated retry and credential restart are implemented;
+      `SecurePathEndpoint` switches its active path after an encrypted probe.
 - [ ] Cross-network Publisher→Relay→Subscriber performance measurements
 
 ## Next milestones

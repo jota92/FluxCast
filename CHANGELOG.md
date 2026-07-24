@@ -4,6 +4,9 @@ All notable changes will be recorded here.
 
 ## 0.1.0 — unreleased
 
+- Added `SecurePathEndpoint`, which owns encrypted control/media sequence
+  numbers and promotes a new active path only after a matching encrypted probe.
+
 - Added authenticated ICE candidate retry/fallback with measured RTT and an
   explicit credential-restart API.
 
