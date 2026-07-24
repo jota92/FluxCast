@@ -54,6 +54,25 @@ The nonce is the 12-byte concatenation of `session_id` and `sequence_number`.
 Implementations must establish a fresh key for every epoch and reject duplicate
 or out-of-window sequence numbers before releasing plaintext.
 
+## Control payloads (FEC, NACK, ACK)
+
+These payloads ride inside the correspondingly typed FCDP datagrams. All
+integers are big-endian. Canonical byte vectors are in
+[`control-vectors.json`](control-vectors.json) and asserted by the Rust core.
+
+- **FEC** (`FEC` datagram): `symbol_len: u16`, `fragment_count: u16`,
+  `original_len: u32`, then `symbol_len` parity bytes. Source symbols are
+  zero-padded to `symbol_len` before XOR, so one parity datagram repairs any
+  single lost fragment of the frame. Because parity is as large as the biggest
+  symbol, FEC-protected media fragments use a reduced symbol size so the parity
+  datagram still fits the 1200-byte budget.
+- **NACK** (`NACK` datagram): `count: u16`, then `count` big-endian `u32`
+  sequence numbers being requested. Only audio and key-video sequences are
+  eligible, and only while still within their deadline.
+- **ACK** (`ACK` datagram): a fixed 16-byte receiver report — `sent: u32`,
+  `received: u32`, `late: u32`, `rtt_micros: u32` — feeding the AIMD bitrate
+  controller.
+
 ## Authenticated handshake profile
 
 The version-1 handshake is an application control exchange before encrypted
