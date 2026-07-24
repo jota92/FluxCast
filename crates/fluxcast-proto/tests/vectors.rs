@@ -147,7 +147,11 @@ fn rust_encoding_matches_committed_vectors() {
         return;
     }
 
-    let committed = std::fs::read_to_string(&path).expect("read spec/test-vectors.json");
+    // Git may check the JSON out as CRLF on Windows; preserve the canonical
+    // logical vector content while accepting that platform text conversion.
+    let committed = std::fs::read_to_string(&path)
+        .expect("read spec/test-vectors.json")
+        .replace("\r\n", "\n");
     assert_eq!(
         committed, rendered,
         "spec/test-vectors.json is stale; regenerate with FLUXCAST_BLESS=1"
