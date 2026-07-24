@@ -2,7 +2,7 @@
 
 Status: **draft; intentionally not stable**.
 
-FCDP runs over UDP. Implementations must limit datagrams to 1200 bytes by default and must never rely on IP fragmentation. This document describes only the unencrypted M1 framing layer; it is not a security or session specification.
+FCDP runs over UDP. Implementations must limit datagrams to 1200 bytes by default and must never rely on IP fragmentation.
 
 ## Header
 
@@ -36,8 +36,22 @@ those test vectors are available.
 - Integers use network byte order.
 - Receivers reject unknown versions, invalid CRCs, invalid fragment indices, invalid priorities, and payload-length mismatches before media processing.
 - `deadline_ms` is a relative expiration budget. Senders must not enqueue a packet after its deadline, and receivers may discard incomplete frames after their deadline.
-- Packet sequence numbers wrap modulo `u32`; replay prevention is not defined by this draft.
+- Packet sequence numbers wrap modulo `u32`; a new epoch and session key are mandatory before nonce reuse.
 
-## Security notice
+## Encrypted payload profile
 
-The M0 framing crate does not encrypt or authenticate media. CRC only detects accidental corruption. A future session specification will require an audited key exchange and AEAD before any networked release.
+An encrypted packet sets flag bit 0. Its payload is ChaCha20-Poly1305
+ciphertext followed by a 16-byte authentication tag. The first 35 header bytes
+(through `payload length`) are AEAD associated data; therefore all routing,
+priority, deadline, epoch, and sequence fields are authenticated. The CRC
+remains an inexpensive accidental-corruption filter and is not a security
+control.
+
+The nonce is the 12-byte concatenation of `session_id` and `sequence_number`.
+Implementations must establish a fresh key for every epoch and reject duplicate
+or out-of-window sequence numbers before releasing plaintext.
+
+Peer public keys must be authenticated out of band until the versioned FCDP
+handshake specification is published. The current implementation exposes
+X25519 key agreement and secure UDP transport, but does not yet define an
+interoperable on-wire handshake.
