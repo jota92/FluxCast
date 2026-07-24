@@ -296,4 +296,18 @@ mod tests {
             Err(EncodeError::DatagramTooLarge)
         );
     }
+    #[test]
+    fn decoder_rejects_untrusted_bytes_without_panicking() {
+        let mut state = 0x4d59_5df4_d0f3_3173_u64;
+        for length in 0..=DEFAULT_MAX_DATAGRAM_LEN + 8 {
+            let mut packet = vec![0_u8; length];
+            for byte in &mut packet {
+                state ^= state << 13;
+                state ^= state >> 7;
+                state ^= state << 17;
+                *byte = state.to_le_bytes()[0];
+            }
+            let _ = Header::decode(&packet);
+        }
+    }
 }

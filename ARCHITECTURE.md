@@ -24,7 +24,11 @@ encoded access unit
 
 ## Security boundary
 
-The current code validates framing only. CRC-16 detects accidental corruption; it is not authentication. A networked release requires a versioned handshake, replay protection, key rotation, rate limiting, and audited AEAD encryption. Those requirements are intentionally not simulated or claimed as complete here.
+CRC-16 detects accidental corruption; it is not authentication. The secure
+transport path has a signed ephemeral handshake, AEAD encryption, and replay
+rejection. Identity authorization, key rotation, rate limiting, and an
+independent review remain release gates. The diagnostic `send`/`receive` CLI
+commands intentionally use plaintext FCDP and are not a secure application.
 
 ## Release baseline
 
