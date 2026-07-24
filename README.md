@@ -2,6 +2,19 @@
 
 > A Rust implementation of deadline-aware UDP primitives for low-latency media delivery.
 
+[日本語](docs/ja/README.md) | [简体中文](docs/zh-CN/README.md) | **English**
+
+**Start here:** FluxCast is an experimental, native UDP media transport for
+applications that need to make latency-aware delivery decisions. It is
+pre-alpha, is not WebRTC-compatible, and is not ready for production or
+confidential media. If that fits your experiment, the following two commands
+give you a safe local first run:
+
+```sh
+cargo test --workspace
+cargo run -p fluxcast-cli -- demo
+```
+
 FluxCast prioritizes the media that can still improve what a viewer sees or hears: audio and keyframes first; expired video is discarded instead of increasing latency. It is a new implementation and is not wire-compatible with WebRTC, SRT, RTP, QUIC, or MoQ.
 
 ## What works today
@@ -16,8 +29,15 @@ A deterministic loss/reordering/expiry simulator (`fluxcast-cli simulate`) demon
 
 ## Quick start
 
+### 1. Install Rust
+
+Install the stable Rust toolchain with [rustup](https://rustup.rs/), then clone
+this repository. No database, cloud account, or media device is required for
+the local demo.
+
 ```sh
-cargo run -p fluxcast-cli
+git clone <repository-url>
+cd fluxcast
 cargo test --workspace
 cargo run -p fluxcast-cli -- demo
 ```
@@ -27,6 +47,30 @@ To test across two local terminals:
 ```sh
 cargo run -p fluxcast-cli -- receive 127.0.0.1:9000
 cargo run -p fluxcast-cli -- send 127.0.0.1:9000 "hello FluxCast"
+```
+
+### 2. Choose an integration path
+
+- **Rust application:** use the workspace crates directly while APIs are
+  stabilizing: `fluxcast-proto`, `fluxcast-core`, and `fluxcast-security`.
+- **Protocol integration:** start from the pinned byte examples in
+  [`spec/test-vectors.json`](spec/test-vectors.json), then use the minimal
+  SDKs in [`sdk/`](sdk/). Python and Node vectors are verified in CI; Go,
+  Swift, and Kotlin bindings are early-stage reference implementations.
+- **Browser experiment:** run the documented
+  [WebSocket-to-UDP gateway](gateway/README.md) behind TLS and your own
+  authentication/origin policy. It is not a public Internet service by itself.
+- **Camera demonstration:** see [`demo/`](demo/) for camera/microphone to HLS
+  playback. It is a demonstration deployment, not a production template.
+
+### 3. Verify before changing the protocol
+
+```sh
+cargo fmt --check
+cargo clippy --workspace --all-targets -- -D warnings
+cargo test --workspace
+bash scripts/verify_vectors.sh
+bash scripts/test_gateway.sh
 ```
 
 ## Direction
@@ -39,8 +83,11 @@ cargo run -p fluxcast-cli -- send 127.0.0.1:9000 "hello FluxCast"
 
 The intended product direction is native Publisher/Relay/Subscriber traffic over FCDP/UDP, H.264 access units and Opus packets as the first media targets, plus a separate browser gateway. A future Relay will never decode or transcode media.
 
-See [the protocol draft](spec/fcdp-v0.1.md), [the validation record](VALIDATION.md), [the roadmap](ROADMAP.md), and [contributing guidance](CONTRIBUTING.md).
+See [the protocol draft](spec/fcdp-v0.1.md), [the validation record](VALIDATION.md), [the roadmap](ROADMAP.md), [security guidance](SECURITY.md), [project governance](GOVERNANCE.md), and [contributing guidance](CONTRIBUTING.md).
 
 ## License
 
-Apache-2.0. See [LICENSE](LICENSE).
+Apache-2.0. You may use, modify, redistribute, and use FluxCast commercially,
+subject to its notice, license, and patent-termination terms. The FluxCast name
+and logos (if introduced) are not granted as trademarks. See [LICENSE](LICENSE)
+and [GOVERNANCE.md](GOVERNANCE.md).

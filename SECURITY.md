@@ -13,18 +13,23 @@ untrusted networks.
 - Applications must pin or otherwise authorize the Ed25519 identities. The
   library deliberately does not invent a trust service or account model.
 - A Relay should forward ciphertext only. It must not hold end-to-end media
-  keys. Gateway and Relay control planes remain incomplete and are not a
-  substitute for application authentication.
+  keys. Gateway and Relay control planes are not a substitute for application
+  authentication.
+- STUN discovery, authenticated ICE connectivity checks with `USE-CANDIDATE`,
+  and TURN Allocate/CreatePermission/ChannelBind/Refresh are implemented.
+  They are building blocks, not a complete connection manager.
 
 ## Known release blockers
 
 - No third-party cryptographic/protocol audit has been performed.
-- No ICE nomination, TURN allocation, key rotation, certificate lifecycle, or
-  persistent authorization service exists yet.
+- The ICE layer does not yet provide full check scheduling, role-conflict
+  handling, restart, automatic TURN fallback, or connection migration.
+- No automatic key rotation, certificate lifecycle, or persistent
+  authorization service exists yet.
 - The diagnostic CLI uses plaintext FCDP unless a caller constructs a secure
   session; it is not a secure publishing application.
-- The browser Gateway is loopback-only and requires a TLS reverse proxy with
-  origin, rate-limit, and token-lifecycle policy.
+- The browser Gateway requires a TLS reverse proxy and an application-owned
+  origin, rate-limit, and token-lifecycle policy before exposure to users.
 
 ## Reporting
 

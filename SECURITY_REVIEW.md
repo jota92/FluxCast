@@ -11,7 +11,8 @@ and evidence, not an assertion that an audit has occurred.
    lifecycle.
 4. Relay and browser Gateway exposure, authorization, resource limits, and
    denial-of-service behavior.
-5. STUN/ICE/TURN and migration code when implemented.
+5. STUN, authenticated ICE checks and nomination, TURN allocation/permission/
+   channel handling, and the unfinished migration/connection-management path.
 
 ## Evidence included in this repository
 

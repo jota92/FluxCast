@@ -5,3 +5,15 @@
 __pycache__/
 *.py[cod]
 sdk/swift/.build/
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+*.m3u8
+*.ts
+demo/public/
+demo/hls/
+*.log

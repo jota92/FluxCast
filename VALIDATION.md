@@ -78,8 +78,9 @@ and relay ports UDP 49152–49200. FluxCast's own `TurnClient`
 This exercises FluxCast's TURN allocation, authentication, permissions, channel
 binding, and `Data`-indication handling against production coturn. Credentials
 are ephemeral deployment secrets and are deliberately not stored in this
-repository. ICE nomination and automatic TURN fallback wiring remain in
-progress. The classic `turnutils_uclient` check also passed previously.
+repository. Authenticated ICE nomination is implemented; complete ICE check
+scheduling and automatic TURN fallback wiring remain in progress. The classic
+`turnutils_uclient` check also passed previously.
 
 ## Re-running
 
