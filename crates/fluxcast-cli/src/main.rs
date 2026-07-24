@@ -6,7 +6,8 @@ use std::time::{Duration, Instant};
 
 use fluxcast_core::{
     AccessUnit, MAX_MEDIA_PAYLOAD, MediaKind, Reassembler, RelaySubscriptions, SecureUdpEndpoint,
-    UdpEndpoint, discover_server_reflexive_candidate, fragment_access_unit,
+    UdpEndpoint, discover_server_reflexive_candidate, fragment_access_unit, split_h264_annex_b,
+    split_ogg_pages,
 };
 use fluxcast_proto::{Header, PacketType};
 use fluxcast_security::Identity;
@@ -28,6 +29,9 @@ fn run(args: &[String]) -> Result<(), Box<dyn std::error::Error>> {
         Some("demo") => demo(),
         Some("secure-demo") => secure_demo(),
         Some("stun") => stun(&args[1..]),
+        Some("send-h264") => send_h264(&args[1..]),
+        Some("send-opus") => send_opus(&args[1..]),
+        Some("receive-file") => receive_file(&args[1..]),
         Some("help") | None => {
             print_help();
             Ok(())
@@ -149,6 +153,85 @@ fn send(args: &[String]) -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
+fn send_h264(args: &[String]) -> Result<(), Box<dyn std::error::Error>> {
+    let [destination, input] = args else {
+        return Err("usage: fluxcast-cli send-h264 <host:port> <annex-b.h264>".into());
+    };
+    let bytes = std::fs::read(input)?;
+    let units = split_h264_annex_b(&bytes)?;
+    let media: Vec<(MediaKind, Vec<u8>)> = units
+        .into_iter()
+        .map(|nal| (nal.kind, nal.bytes.to_vec()))
+        .collect();
+    send_media(destination, &media, "H.264 NAL units")
+}
+
+fn send_opus(args: &[String]) -> Result<(), Box<dyn std::error::Error>> {
+    let [destination, input] = args else {
+        return Err("usage: fluxcast-cli send-opus <host:port> <input.opus>".into());
+    };
+    let bytes = std::fs::read(input)?;
+    let media: Vec<(MediaKind, Vec<u8>)> = split_ogg_pages(&bytes)?
+        .into_iter()
+        .map(|page| (MediaKind::Audio, page.to_vec()))
+        .collect();
+    send_media(destination, &media, "Ogg Opus pages")
+}
+
+fn send_media(
+    destination: &str,
+    units: &[(MediaKind, Vec<u8>)],
+    label: &str,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let destination: SocketAddr = destination.parse()?;
+    let endpoint = UdpEndpoint::bind("0.0.0.0:0".parse()?)?;
+    let mut sequence = 1;
+    for (index, (kind, bytes)) in units.iter().enumerate() {
+        let now = Instant::now();
+        let unit = AccessUnit {
+            stream_id: 1,
+            frame_id: u32::try_from(index + 1)?,
+            kind: *kind,
+            deadline: now + Duration::from_secs(2),
+            bytes: bytes.clone(),
+        };
+        for packet in fragment_access_unit(1, 1, &mut sequence, &unit, now)? {
+            endpoint.send(destination, &packet.bytes)?;
+        }
+    }
+    println!("sent {} {label} to {destination}", units.len());
+    Ok(())
+}
+
+fn receive_file(args: &[String]) -> Result<(), Box<dyn std::error::Error>> {
+    let [address, output] = args else {
+        return Err("usage: fluxcast-cli receive-file <bind-host:port> <output>".into());
+    };
+    let endpoint = UdpEndpoint::bind(address.parse()?)?;
+    let mut file = std::fs::File::create(output)?;
+    println!(
+        "writing received media to {output}; listening on {}",
+        endpoint.local_addr()?
+    );
+    let until = Instant::now() + Duration::from_secs(30);
+    let mut buffer = vec![0; 1200];
+    let mut frames = Reassembler::new();
+    while Instant::now() < until {
+        match endpoint.receive(&mut buffer)? {
+            Some((header, length, _)) => {
+                let (_, payload) = Header::decode(&buffer[..length])?;
+                if let Some(frame) = frames.push(header, payload, Instant::now())? {
+                    file.write_all(&frame)?;
+                    file.flush()?;
+                }
+            }
+            None => thread::sleep(Duration::from_millis(2)),
+        }
+    }
+    file.flush()?;
+    Ok(())
+}
+
 fn receive(args: &[String]) -> Result<(), Box<dyn std::error::Error>> {
     let [address] = args else {
         return Err("usage: fluxcast-cli receive <bind-host:port>".into());
@@ -214,6 +297,6 @@ fn demo() -> Result<(), Box<dyn std::error::Error>> {
 
 fn print_help() {
     println!(
-        "FluxCast pre-alpha diagnostic CLI\n\nCommands:\n  send <host:port> <text>                 send a deadline-aware test access unit\n  receive <host:port>                     receive test access units for 30 seconds\n  relay <bind> <session-id> <subscriber>... fan out one session to viewers\n  stun <host:port>                        discover a server-reflexive UDP candidate\n  demo                                    run an in-process UDP fragmentation/reassembly demo\n  secure-demo                             run an authenticated encrypted UDP demo"
+        "FluxCast pre-alpha diagnostic CLI\n\nCommands:\n  send <host:port> <text>                 send a deadline-aware test access unit\n  send-h264 <host:port> <annex-b.h264>    send H.264 Annex-B NAL units\n  send-opus <host:port> <input.opus>      send Ogg Opus pages\n  receive <host:port>                     receive test access units for 30 seconds\n  receive-file <bind> <output>            recover media stream to a file\n  relay <bind> <session-id> <subscriber>... fan out one session to viewers\n  stun <host:port>                        discover a server-reflexive UDP candidate\n  demo                                    run an in-process UDP fragmentation/reassembly demo\n  secure-demo                             run an authenticated encrypted UDP demo"
     );
 }
