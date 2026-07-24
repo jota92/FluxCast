@@ -41,8 +41,10 @@ measured performance on real hardware and networks.
 - [ ] Cross-network Publisher→Relay→Subscriber performance measurements
 
 ## Next milestones
-- M3: stable C ABI, Python/Node/Swift/Kotlin/Go SDKs, browser support, and
-  interoperation tests across supported platforms.
+- M3: stable C ABI, Python/Node/Swift/Kotlin/Go SDKs, browser support
+  (WebSocket→UDP gateway working and tested via `scripts/test_gateway.sh`;
+  WebTransport adapter still to come), and interoperation tests across
+  supported platforms.
 - M4: adaptive bitrate and FEC, 4K pass-through, reproducible benchmarks,
   external security review, and release readiness.
 

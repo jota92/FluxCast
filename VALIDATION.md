@@ -34,6 +34,16 @@ byte-for-byte and round-trips every vector; `scripts/verify_vectors.sh`
 additionally confirms the Python and Node.js SDKs encode and decode the same
 bytes. This check runs in CI.
 
+## Browser gateway round trip
+
+`scripts/test_gateway.sh` starts the WebSocket→UDP gateway and a native
+receiver, then a WebSocket client (Node 22+ global `WebSocket`, the same API a
+browser uses) sends the canonical `media_minimal` FCDP datagram. The receiver
+reassembles it and prints `opus-or-h264`, confirming the browser path
+(WebSocket → gateway → FCDP/UDP → native receiver) without the gateway ever
+decrypting media. The in-app browser was additionally driven live through the
+same page (`window.fluxcastSend`) with the same result.
+
 ## External Relay check
 
 On 2026-07-24, a temporary FluxCast Relay and local receiver ran on the

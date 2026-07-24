@@ -16,8 +16,13 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt, clippy
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
       - run: cargo fmt --check
       - run: cargo clippy --workspace --all-targets -- -D warnings
       - run: cargo test --workspace
       - name: Cross-language FCDP test vectors
         run: bash scripts/verify_vectors.sh
+      - name: Browser gateway round trip
+        run: bash scripts/test_gateway.sh

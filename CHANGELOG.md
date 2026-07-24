@@ -12,4 +12,5 @@ All notable changes will be recorded here.
 - Added `fragment_access_unit_sized` so FEC-protected frames use a symbol size that keeps parity within the datagram budget.
 - Added a TURN (RFC 5766/8489) client (`fluxcast-core::turn`) with long-term authentication (MD5 + HMAC-SHA1 `MESSAGE-INTEGRITY`), Allocate/CreatePermission/ChannelBind/Refresh, and `ChannelData`/`Data`-indication relaying, plus `fluxcast-cli turn`/`turn-recv`. Validated end-to-end against coturn on Azure.
 - Added a shared STUN codec (`fluxcast-core::stun`) and an authenticated ICE connectivity-check agent (`fluxcast-core::ice`, RFC 8445 short-term credentials): STUN Binding checks with `MESSAGE-INTEGRITY`, `USE-CANDIDATE` nomination by the controlling agent, and rejection of forged checks.
+- Fixed the browser gateway serving a 404 for `/?token=...` (it now matches on the URL path), and added `scripts/test_gateway.sh`, a reproducible WebSocket→gateway→UDP→receiver round-trip check wired into CI.
 - Added OSS governance, security, contribution, CI, and issue-reporting foundations.

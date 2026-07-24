@@ -22,7 +22,8 @@ if (!peerHost || !Number.isInteger(peerPort) || peerPort < 1 || peerPort > 65535
 const root = dirname(fileURLToPath(import.meta.url));
 
 const http = createServer(async (request, response) => {
-  if (request.url !== '/') { response.writeHead(404).end(); return; }
+  const path = new URL(request.url, `http://${request.headers.host}`).pathname;
+  if (path !== '/') { response.writeHead(404).end(); return; }
   response.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' });
   response.end(await readFile(join(root, 'index.html')));
 });
