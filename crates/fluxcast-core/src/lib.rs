@@ -28,6 +28,51 @@ pub struct ServerReflexiveCandidate {
     pub stun_server: SocketAddr,
 }
 
+/// ICE candidate kind. Direct candidates are preferred; relay is the safe
+/// fallback when a direct authenticated path cannot be nominated.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum IceCandidateKind {
+    Relay,
+    ServerReflexive,
+    Host,
+}
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct IceCandidate {
+    pub address: SocketAddr,
+    pub kind: IceCandidateKind,
+    pub priority: u32,
+}
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct IceCandidatePair {
+    pub local: IceCandidate,
+    pub remote: IceCandidate,
+}
+
+/// Returns pairs in descending ICE preference. Callers must still perform an
+/// authenticated connectivity check before nominating any returned pair.
+#[must_use]
+pub fn ordered_ice_pairs(local: &[IceCandidate], remote: &[IceCandidate]) -> Vec<IceCandidatePair> {
+    let mut pairs: Vec<_> = local
+        .iter()
+        .copied()
+        .flat_map(|left| {
+            remote.iter().copied().map(move |right| IceCandidatePair {
+                local: left,
+                remote: right,
+            })
+        })
+        .collect();
+    pairs.sort_unstable_by_key(|pair| {
+        (
+            std::cmp::Reverse(pair.local.kind),
+            std::cmp::Reverse(pair.remote.kind),
+            std::cmp::Reverse(pair.local.priority),
+            std::cmp::Reverse(pair.remote.priority),
+        )
+    });
+    pairs
+}
+
 /// Multi-viewer subscription registry for a media relay.
 ///
 /// A control plane authorizes subscriptions and refreshes them before their
@@ -1094,6 +1139,23 @@ mod tests {
             now + Duration::from_secs(4)
         ));
         assert_eq!(paths.active(), primary);
+    }
+    #[test]
+    fn ice_orders_direct_candidates_before_turn_relay() {
+        let host = IceCandidate {
+            address: "127.0.0.1:5000".parse().unwrap(),
+            kind: IceCandidateKind::Host,
+            priority: 1,
+        };
+        let relay = IceCandidate {
+            address: "127.0.0.1:3478".parse().unwrap(),
+            kind: IceCandidateKind::Relay,
+            priority: 1,
+        };
+        let pairs = ordered_ice_pairs(&[relay, host], &[relay, host]);
+        assert_eq!(pairs[0].local.kind, IceCandidateKind::Host);
+        assert_eq!(pairs[0].remote.kind, IceCandidateKind::Host);
+        assert_eq!(pairs.last().unwrap().local.kind, IceCandidateKind::Relay);
     }
     #[test]
     fn splits_annex_b_h264_and_preserves_keyframe_priority() {
