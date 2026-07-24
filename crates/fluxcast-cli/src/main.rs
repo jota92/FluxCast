@@ -34,6 +34,8 @@ fn run(args: &[String]) -> Result<(), Box<dyn std::error::Error>> {
         Some("stun") => stun(&args[1..]),
         Some("turn") => turn(&args[1..]),
         Some("turn-recv") => turn_recv(&args[1..]),
+        Some("publish-ts") => publish_ts(&args[1..]),
+        Some("receive-ts") => receive_ts(&args[1..]),
         Some("send-h264") => send_h264(&args[1..]),
         Some("send-opus") => send_opus(&args[1..]),
         Some("receive-file") => receive_file(&args[1..]),
@@ -272,6 +274,99 @@ fn send(args: &[String]) -> Result<(), Box<dyn std::error::Error>> {
     }
     println!("sent {} bytes to {destination}", payload.len());
     Ok(())
+}
+
+/// Streams a live byte stream from stdin (e.g. an MPEG-TS from ffmpeg) as
+/// sequential FCDP MEDIA datagrams. Each datagram is one ordered chunk; the
+/// receiver restores byte order. Intended for the camera demo.
+fn publish_ts(args: &[String]) -> Result<(), Box<dyn std::error::Error>> {
+    let [destination] = args else {
+        return Err("usage: fluxcast-cli publish-ts <host:port>  (reads stdin)".into());
+    };
+    let destination: SocketAddr = destination
+        .to_socket_addrs()?
+        .next()
+        .ok_or("destination did not resolve")?;
+    let socket = UdpSocket::bind(if destination.is_ipv4() {
+        "0.0.0.0:0"
+    } else {
+        "[::]:0"
+    })?;
+    let mut stdin = std::io::stdin().lock();
+    // 6 MPEG-TS packets (188 B each) per datagram stays within the 1200-byte budget.
+    let mut buffer = vec![0u8; 6 * 188];
+    let mut sequence: u32 = 0;
+    let mut packet = Vec::with_capacity(1200);
+    let mut sent: u64 = 0;
+    loop {
+        let read = std::io::Read::read(&mut stdin, &mut buffer)?;
+        if read == 0 {
+            break;
+        }
+        let mut header = Header::new(PacketType::Media);
+        header.session_id = 1;
+        header.stream_id = 1;
+        header.sequence_number = sequence;
+        header.frame_id = sequence;
+        header.deadline_ms = 1000;
+        packet.clear();
+        header.encode(&buffer[..read], &mut packet)?;
+        socket.send_to(&packet, destination)?;
+        sequence = sequence.wrapping_add(1);
+        sent += 1;
+        if sent % 500 == 0 {
+            eprintln!("publish-ts: sent {sent} datagrams to {destination}");
+        }
+    }
+    eprintln!("publish-ts: input ended after {sent} datagrams");
+    Ok(())
+}
+
+/// Receives an FCDP live byte stream and writes it to stdout in sequence order,
+/// tolerating small reordering and skipping ahead past unrecoverable gaps so a
+/// downstream demuxer keeps flowing. The inverse of `publish-ts`.
+fn receive_ts(args: &[String]) -> Result<(), Box<dyn std::error::Error>> {
+    let [bind] = args else {
+        return Err("usage: fluxcast-cli receive-ts <bind-host:port>  (writes stdout)".into());
+    };
+    let socket = UdpSocket::bind(bind.parse::<SocketAddr>()?)?;
+    eprintln!("receive-ts: listening on {}", socket.local_addr()?);
+    let mut stdout = std::io::stdout().lock();
+    let mut buffer = vec![0u8; 1500];
+    let mut pending: std::collections::BTreeMap<u32, Vec<u8>> = std::collections::BTreeMap::new();
+    let mut next: Option<u32> = None;
+    loop {
+        let (read, _) = socket.recv_from(&mut buffer)?;
+        let Ok((header, payload)) = Header::decode(&buffer[..read]) else {
+            continue;
+        };
+        let sequence = header.sequence_number;
+        if next.is_none() {
+            next = Some(sequence);
+        }
+        pending.entry(sequence).or_insert_with(|| payload.to_vec());
+
+        // If a gap stalls delivery, jump to the oldest buffered chunk so the
+        // stream does not freeze on a lost datagram.
+        if pending.len() > 128 {
+            if let Some(expected) = next {
+                if !pending.contains_key(&expected) {
+                    if let Some(oldest) = pending.keys().next().copied() {
+                        next = Some(oldest);
+                    }
+                }
+            }
+        }
+
+        while let Some(expected) = next {
+            let Some(chunk) = pending.remove(&expected) else {
+                break;
+            };
+            std::io::Write::write_all(&mut stdout, &chunk)?;
+            std::io::Write::flush(&mut stdout)?;
+            next = Some(expected.wrapping_add(1));
+        }
+    }
 }
 
 fn send_h264(args: &[String]) -> Result<(), Box<dyn std::error::Error>> {
@@ -592,6 +687,6 @@ fn demo() -> Result<(), Box<dyn std::error::Error>> {
 
 fn print_help() {
     println!(
-        "FluxCast pre-alpha diagnostic CLI\n\nCommands:\n  send <host:port> <text>                 send a deadline-aware test access unit\n  send-h264 <host:port> <annex-b.h264>    send H.264 Annex-B NAL units\n  send-opus <host:port> <input.opus>      send Ogg Opus pages\n  receive <host:port>                     receive test access units for 30 seconds\n  receive-file <bind> <output>            recover media stream to a file\n  relay <bind> <session-id> <subscriber>... fan out one session to viewers\n  stun <host:port>                        discover a server-reflexive UDP candidate\n  turn <host:port> <user> <pass>          allocate a TURN relay and verify forwarding\n  demo                                    run an in-process UDP fragmentation/reassembly demo\n  simulate [loss] [frames] [seed] [in-order] deterministic loss/reorder/deadline report\n  pipeline-demo [loss] [frames]           end-to-end sender/FEC/NACK/receiver recovery\n  secure-demo                             run an authenticated encrypted UDP demo"
+        "FluxCast pre-alpha diagnostic CLI\n\nCommands:\n  send <host:port> <text>                 send a deadline-aware test access unit\n  send-h264 <host:port> <annex-b.h264>    send H.264 Annex-B NAL units\n  send-opus <host:port> <input.opus>      send Ogg Opus pages\n  receive <host:port>                     receive test access units for 30 seconds\n  receive-file <bind> <output>            recover media stream to a file\n  publish-ts <host:port>                  stream stdin (MPEG-TS) as live FCDP\n  receive-ts <bind>                       write a live FCDP byte stream to stdout\n  relay <bind> <session-id> <subscriber>... fan out one session to viewers\n  stun <host:port>                        discover a server-reflexive UDP candidate\n  turn <host:port> <user> <pass>          allocate a TURN relay and verify forwarding\n  demo                                    run an in-process UDP fragmentation/reassembly demo\n  simulate [loss] [frames] [seed] [in-order] deterministic loss/reorder/deadline report\n  pipeline-demo [loss] [frames]           end-to-end sender/FEC/NACK/receiver recovery\n  secure-demo                             run an authenticated encrypted UDP demo"
     );
 }
