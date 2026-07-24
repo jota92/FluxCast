@@ -2,3 +2,5 @@
 .DS_Store
 *.swp
 /examples/c/send_fcdp
+__pycache__/
+*.py[cod]
