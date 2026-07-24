@@ -74,6 +74,19 @@ bash scripts/verify_vectors.sh
 bash scripts/test_gateway.sh
 ```
 
+## Documentation
+
+| Task | Guide |
+| --- | --- |
+| First local run | [Getting started](docs/GETTING_STARTED.md) |
+| Add FluxCast to an application | [Integration guide](docs/INTEGRATION.md) |
+| Run a gateway or controlled network experiment | [Operations guide](docs/OPERATIONS.md) |
+| Browse all guides and the repository map | [Documentation index](docs/README.md) |
+
+Japanese and Simplified Chinese quick-start guides are available in
+[`docs/ja/`](docs/ja/GETTING_STARTED.md) and
+[`docs/zh-CN/`](docs/zh-CN/GETTING_STARTED.md).
+
 ## Direction
 
 - `fluxcast-proto`: versioned FCDP packet framing and validation.

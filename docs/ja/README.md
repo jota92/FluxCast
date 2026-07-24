@@ -17,6 +17,8 @@ cargo test --workspace
 cargo run -p fluxcast-cli -- demo
 ```
 
+詳しい手順は [はじめに](GETTING_STARTED.md) を参照してください。
+
 2つのターミナルで UDP 送受信も確認できます。
 
 ```sh
@@ -33,6 +35,9 @@ cargo run -p fluxcast-cli -- send 127.0.0.1:9000 "hello FluxCast"
 - **他言語:** [`sdk/`](../../sdk/) の最小実装と [`spec/test-vectors.json`](../../spec/test-vectors.json) を使って FCDP の入出力を確認します。Python と Node.js は同梱スクリプトでベクトル検証できます。
 - **ブラウザ:** [`gateway/README.md`](../../gateway/README.md) の WebSocket→UDP Gateway を使えます。公開時は必ず TLS、独自認証、Origin 制限、レート制限を設定してください。
 - **カメラの実演:** [`demo/`](../../demo/) にカメラ・マイクから HLS 再生までのデモがあります。これは本番構成の雛形ではありません。
+
+英語の詳細資料として、[コードへの組み込み方](../INTEGRATION.md)、
+[Gateway と実験環境の運用](../OPERATIONS.md)、[資料一覧](../README.md) を用意しています。
 
 ## 現在利用できる主な機能
 
