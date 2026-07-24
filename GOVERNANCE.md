@@ -18,8 +18,8 @@ account for public use.
 
 ## Compatibility and support boundaries
 
-- FCDP v0.1 is a draft. It is not wire-compatible with WebRTC, RTP, SRT, QUIC,
-  or MoQ.
+- FCDP v0.1 is a draft protocol profile. Its packet format and public APIs may
+  change before a stable release.
 - Public APIs and packet formats can change before a stable release. Pin a
   commit or release and run the published vector tests when integrating.
 - Security-sensitive and production use are out of scope until an independent

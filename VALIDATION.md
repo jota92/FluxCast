@@ -47,8 +47,8 @@ same page (`window.fluxcastSend`) with the same result.
 ## External Relay check
 
 On 2026-07-24, a temporary FluxCast Relay and local receiver ran on the
-project's persistent Azure test VM. A local publisher sent 13 H.264 NAL units
-over the public Internet to UDP port 19100; the Azure Relay forwarded them to
+project's remote test VM. A local publisher sent 13 H.264 NAL units over the
+public Internet to UDP port 19100; the Relay forwarded them to
 the local subscriber. Input and recovered output had the same SHA-256:
 
 `7475f8d06d1044045dd973e48ceee8229093485913c4e0a5c23f7dd1f9b5de68`
@@ -59,7 +59,7 @@ performance, or security certification.
 
 ## TURN relay check (FluxCast client)
 
-On 2026-07-24, the `fluxcast-lab` Azure VM (East Asia) ran coturn with
+On 2026-07-24, a remote test VM ran coturn with
 long-term authentication (`lt-cred-mech`, realm `fluxcast`), UDP listener 3478,
 and relay ports UDP 49152–49200. FluxCast's own `TurnClient`
 (`fluxcast-core::turn`) was driven from a home network behind NAT:
@@ -67,13 +67,12 @@ and relay ports UDP 49152–49200. FluxCast's own `TurnClient`
 - `fluxcast-cli turn` completed the 401 challenge and an authenticated
   Allocate, `CreatePermission`, and `ChannelBind`, each carrying a valid
   `MESSAGE-INTEGRITY` (MD5 long-term key + HMAC-SHA1). It received relayed
-  address `20.205.121.106:49189` and correctly reported its server-reflexive
-  mapping `219.28.140.145:53871`.
+  relayed address and correctly reported its server-reflexive mapping.
 - A full data-plane relay was then verified: `fluxcast-cli turn-recv`
-  allocated relay `20.205.121.106:49160` and permitted the peer IP; a peer
+  allocated a relay address and permitted the peer IP; a peer
   process on the VM sent to the relay; coturn forwarded the datagram across the
   public Internet as a STUN `Data` indication, which the client decoded to the
-  original 19-byte payload from peer `20.205.121.106:43884`.
+  original 19-byte payload from the permitted peer.
 
 This exercises FluxCast's TURN allocation, authentication, permissions, channel
 binding, and `Data`-indication handling against production coturn. Credentials
@@ -91,7 +90,7 @@ cargo test --workspace
 cargo run -p fluxcast-cli -- secure-demo
 cargo run -p fluxcast-cli -- simulate 0.02 300 1
 cargo run -p fluxcast-cli -- pipeline-demo 0.15 120
-cargo run -p fluxcast-cli -- stun stun.l.google.com:19302
+cargo run -p fluxcast-cli -- stun <stun-server:port>
 bash scripts/verify_vectors.sh
 bash scripts/test_media_roundtrip.sh
 ```

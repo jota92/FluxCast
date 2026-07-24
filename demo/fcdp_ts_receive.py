@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Receive a live FCDP byte stream and write it to stdout in order.
 
-This is the Azure-side counterpart to `fluxcast-cli publish-ts`. It uses the
+This is the receiver-side counterpart to `fluxcast-cli publish-ts`. It uses the
 FluxCast Python SDK to decode FCDP v0.1 datagrams, reorders by sequence number,
 and skips past unrecoverable gaps so a downstream demuxer keeps flowing. The
 ordered bytes (an MPEG-TS from the publisher) are meant to be piped into ffmpeg.

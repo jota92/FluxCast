@@ -41,9 +41,9 @@ commands intentionally use plaintext FCDP and are not a secure application.
 
 ## Release baseline
 
-FluxCast will not describe itself as a WebRTC-class transport until it provides
-the following as maintained, tested product capabilities: ICE/STUN/TURN NAT
-traversal; authenticated encrypted sessions (the role served by DTLS-SRTP in
-WebRTC); congestion control and adaptive bitrate; browser interoperability;
-stable multi-platform SDKs; diagnostics; and reproducible interoperation tests.
-These are release gates, not optional enhancements.
+FluxCast will not make a production-readiness claim until it provides the
+following as maintained, tested product capabilities: NAT traversal;
+authenticated encrypted sessions; congestion control and adaptive bitrate;
+browser interoperability; stable multi-platform SDKs; diagnostics; and
+reproducible interoperation tests. These are release gates, not optional
+enhancements.

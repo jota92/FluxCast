@@ -1,19 +1,19 @@
 # FluxCast camera demo
 
-Streams a local camera + microphone to a browser via FluxCast/FCDP, with an
-Azure-hosted Flask site playing the result over HLS.
+Streams a local camera + microphone to a browser via FluxCast/FCDP, with a
+remote receiver serving the result over HLS.
 
 ```
 camera + mic → ffmpeg (H.264/AAC, MPEG-TS)
              → fluxcast-cli publish-ts  (FCDP/UDP, this is FluxCast transport)
-             → Azure: fcdp_ts_receive.py (FluxCast Python SDK) → ffmpeg (HLS remux, no re-encode)
-             → Flask (app.py) → browser <video> (hls.js / native HLS)
+             → remote: fcdp_ts_receive.py (FluxCast Python SDK) → ffmpeg (HLS remux, no re-encode)
+             → app.py → browser playback
 ```
 
 The receiver never decrypts or re-encodes media; ffmpeg only repackages the
 MPEG-TS into HLS segments for browser playback.
 
-## Server side (Azure)
+## Receiver side
 
 Deployed to the `fluxcast-lab` VM as two systemd services:
 
@@ -33,14 +33,14 @@ ffmpeg -hide_banner -loglevel error \
   -f avfoundation -framerate 30 -video_size 640x480 -i "0:1" \
   -c:v libx264 -preset ultrafast -tune zerolatency -g 30 -pix_fmt yuv420p \
   -c:a aac -ar 44100 -f mpegts - \
-  | ./target/release/fluxcast-cli publish-ts <AZURE_IP>:19300
+  | ./target/release/fluxcast-cli publish-ts <RECEIVER_HOST>:19300
 ```
 
 `-i "0:1"` selects video device 0 and audio device 1. macOS prompts for camera
-and microphone permission on first run. Open `http://<AZURE_IP>:8000/` to watch;
+and microphone permission on first run. Open `http://<RECEIVER_HOST>:8000/` to watch;
 HLS adds ~3–6 s of latency.
 
-## Local dry run (no camera, no Azure)
+## Local dry run (no camera or remote host)
 
 ```sh
 FLUXCAST_HLS_DIR=/tmp/hls bash demo/run_receiver.sh 127.0.0.1:19300 &

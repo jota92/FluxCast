@@ -27,7 +27,7 @@
 <body>
 <header>
   <h1>FluxCast カメラデモ</h1>
-  <div class="sub">ローカルのカメラ映像・音声を FluxCast (FCDP/UDP) で Azure に配送し、HLS で再生しています。</div>
+  <div class="sub">ローカルのカメラ映像・音声を FluxCast (FCDP/UDP) で受信側へ配送し、HLS で再生しています。</div>
 </header>
 <div class="stage">
   <video id="video" controls autoplay muted playsinline></video>
@@ -37,7 +37,7 @@
   </div>
   <div class="path">
     camera + mic → ffmpeg(H.264/AAC) → fluxcast publish-ts → FCDP/UDP →
-    Azure fcdp_ts_receive.py → ffmpeg(HLS, 再エンコードなし) → Flask → このページ
+    receiver fcdp_ts_receive.py → ffmpeg(HLS, 再エンコードなし) → app.py → このページ
   </div>
 </div>
 <script src="/static/hls.min.js"></script>
@@ -58,7 +58,7 @@
     const hls = new Hls({ liveSyncDurationCount: 2, lowLatencyMode: true });
     const attach = () => hls.loadSource(src);
     hls.on(Hls.Events.MEDIA_ATTACHED, attach);
-    hls.on(Hls.Events.MANIFEST_PARSED, () => { setState('再生中 (hls.js)', true); video.play().catch(() => {}); });
+    hls.on(Hls.Events.MANIFEST_PARSED, () => { setState('再生中', true); video.play().catch(() => {}); });
     hls.on(Hls.Events.ERROR, (_e, data) => {
       if (data.fatal) { setState('ストリーム待ち…再試行中', false); setTimeout(attach, 2000); }
     });

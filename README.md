@@ -6,8 +6,8 @@
 
 **Start here:** FluxCast is an experimental, native UDP media transport for
 applications that need to make latency-aware delivery decisions. It is
-pre-alpha, is not WebRTC-compatible, and is not ready for production or
-confidential media. If that fits your experiment, the following two commands
+pre-alpha and is not ready for production or confidential media. If that fits
+your experiment, the following two commands
 give you a safe local first run:
 
 ```sh
@@ -15,7 +15,7 @@ cargo test --workspace
 cargo run -p fluxcast-cli -- demo
 ```
 
-FluxCast prioritizes the media that can still improve what a viewer sees or hears: audio and keyframes first; expired video is discarded instead of increasing latency. It is a new implementation and is not wire-compatible with WebRTC, SRT, RTP, QUIC, or MoQ.
+FluxCast prioritizes the media that can still improve what a viewer sees or hears: audio and keyframes first; expired video is discarded instead of increasing latency. Its FCDP packet format is currently a draft and may change before a stable release.
 
 ## What works today
 
@@ -23,9 +23,9 @@ FluxCast prioritizes the media that can still improve what a viewer sees or hear
 
 The current implementation also includes a cohesive deadline-aware media pipeline (`MediaSender`/`MediaReceiver`) that fragments access units, adds per-frame XOR FEC, retains audio/keyframes for retransmission, drops expired frames, drives NACK feedback, and adapts the send bitrate from authenticated receiver reports (AIMD congestion control with recovery keyframes) — demonstrated end to end by `fluxcast-cli pipeline-demo`.
 
-For connectivity it provides RFC 5389 STUN server-reflexive discovery, a TURN client (RFC 5766/8489) for relayed NAT traversal — validated end to end against coturn on Azure — and an authenticated ICE connectivity-check agent (RFC 8445) with `USE-CANDIDATE` nomination. Security is a signed forward-secret handshake (Ed25519 + ephemeral X25519 + HKDF) with ChaCha20-Poly1305 packet protection and replay rejection. It also ships a WebSocket→UDP browser gateway (validated live and by `scripts/test_gateway.sh`), multi-subscriber relay leases, a Prometheus/OpenMetrics diagnostics module, and CLI H.264 Annex-B / Ogg Opus send-and-recover paths.
+For connectivity it provides RFC 5389 STUN server-reflexive discovery, a TURN client (RFC 5766/8489) for relayed NAT traversal, and an authenticated ICE connectivity-check agent (RFC 8445) with `USE-CANDIDATE` nomination. Security is a signed forward-secret handshake (Ed25519 + ephemeral X25519 + HKDF) with ChaCha20-Poly1305 packet protection and replay rejection. It also ships a WebSocket→UDP browser gateway (validated live and by `scripts/test_gateway.sh`), multi-subscriber relay leases, an OpenMetrics diagnostics module, and CLI H.264 Annex-B / Ogg Opus send-and-recover paths.
 
-A deterministic loss/reordering/expiry simulator (`fluxcast-cli simulate`) demonstrates FEC recovery without a live network; `spec/test-vectors.json` and `spec/control-vectors.json` pin canonical FCDP framing and control payloads, with reproducible Rust, Python, and Node.js checks. The project is still pre-alpha: a full ICE state machine, connection migration, WebTransport, stable SDK APIs, production relay control-plane persistence, measured glass-to-glass performance, and an independent security review are unfinished. Do not use it for production or confidential media.
+A deterministic loss/reordering/expiry simulator (`fluxcast-cli simulate`) demonstrates FEC recovery without a live network; `spec/test-vectors.json` and `spec/control-vectors.json` pin canonical FCDP framing and control payloads, with reproducible Rust, Python, and Node.js checks. The project is still pre-alpha: a full ICE state machine, connection migration, stable SDK APIs, production relay control-plane persistence, measured glass-to-glass performance, and an independent security review are unfinished. Do not use it for production or confidential media.
 
 ## Quick start
 

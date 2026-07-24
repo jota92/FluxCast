@@ -31,7 +31,7 @@ measured performance on real hardware and networks.
 - [x] STUN server-reflexive discovery (`discover_server_reflexive_candidate`)
 - [x] TURN relay allocation with long-term auth, permissions, channel binding,
       and `Data`-indication relaying (`fluxcast-core::turn`), validated against
-      coturn on Azure
+      a remote TURN server
 - [x] Authenticated ICE connectivity checks and `USE-CANDIDATE` nomination
       (`fluxcast-core::ice`), with candidate-pair ordering (`ordered_ice_pairs`)
 - [x] No-transcode authenticated fan-out relay leases/metrics
@@ -42,8 +42,8 @@ measured performance on real hardware and networks.
 
 ## Next milestones
 - M3: stable C ABI, Python/Node/Swift/Kotlin/Go SDKs, browser support
-  (WebSocket→UDP gateway working and tested via `scripts/test_gateway.sh`;
-  WebTransport adapter still to come), and interoperation tests across
+  (WebSocket→UDP gateway working and tested via `scripts/test_gateway.sh`), and
+  interoperation tests across
   supported platforms.
 - M4: adaptive bitrate and FEC, 4K pass-through, reproducible benchmarks,
   external security review, and release readiness.
