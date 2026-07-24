@@ -51,6 +51,72 @@ pub struct RelayMetrics {
     pub expired_subscriptions: u64,
 }
 
+/// Authenticated candidate-path state used for network migration.
+///
+/// Call [`PathMigration::observe_authenticated_pong`] only after the PONG was
+/// accepted by the session AEAD/replay layer. This prevents an off-path party
+/// from steering traffic merely by forging reachability reports.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PathMigration {
+    active: SocketAddr,
+    active_rtt: Duration,
+    active_seen: Instant,
+    stale_after: Duration,
+}
+
+impl PathMigration {
+    #[must_use]
+    pub fn new(
+        active: SocketAddr,
+        now: Instant,
+        initial_rtt: Duration,
+        stale_after: Duration,
+    ) -> Self {
+        Self {
+            active,
+            active_rtt: initial_rtt,
+            active_seen: now,
+            stale_after,
+        }
+    }
+    #[must_use]
+    pub const fn active(&self) -> SocketAddr {
+        self.active
+    }
+    #[must_use]
+    pub const fn active_rtt(&self) -> Duration {
+        self.active_rtt
+    }
+    #[must_use]
+    pub fn active_is_stale(&self, now: Instant) -> bool {
+        now.duration_since(self.active_seen) >= self.stale_after
+    }
+    /// Records authenticated reachability and returns true precisely when the
+    /// active path changes. A candidate needs a 20% RTT advantage unless the
+    /// old path is stale, avoiding oscillation on ordinary jitter.
+    pub fn observe_authenticated_pong(
+        &mut self,
+        candidate: SocketAddr,
+        rtt: Duration,
+        now: Instant,
+    ) -> bool {
+        if candidate == self.active {
+            self.active_rtt = rtt;
+            self.active_seen = now;
+            return false;
+        }
+        let stale = self.active_is_stale(now);
+        let materially_faster = rtt.saturating_mul(5) < self.active_rtt.saturating_mul(4);
+        if stale || materially_faster {
+            self.active = candidate;
+            self.active_rtt = rtt;
+            self.active_seen = now;
+            return true;
+        }
+        false
+    }
+}
+
 impl RelaySubscriptions {
     #[must_use]
     pub fn new() -> Self {
@@ -994,6 +1060,40 @@ mod tests {
         let metrics = relay.metrics();
         assert_eq!(metrics.active_sessions, 0);
         assert_eq!(metrics.expired_subscriptions, 2);
+    }
+    #[test]
+    fn migration_switches_only_for_stale_or_materially_better_path() {
+        let now = Instant::now();
+        let primary = "127.0.0.1:40001".parse().unwrap();
+        let backup = "127.0.0.1:40002".parse().unwrap();
+        let mut paths = PathMigration::new(
+            primary,
+            now,
+            Duration::from_millis(100),
+            Duration::from_secs(3),
+        );
+        assert!(!paths.observe_authenticated_pong(
+            backup,
+            Duration::from_millis(90),
+            now + Duration::from_millis(10)
+        ));
+        assert!(paths.observe_authenticated_pong(
+            backup,
+            Duration::from_millis(70),
+            now + Duration::from_millis(20)
+        ));
+        assert_eq!(paths.active(), backup);
+        assert!(!paths.observe_authenticated_pong(
+            primary,
+            Duration::from_millis(100),
+            now + Duration::from_millis(30)
+        ));
+        assert!(paths.observe_authenticated_pong(
+            primary,
+            Duration::from_millis(100),
+            now + Duration::from_secs(4)
+        ));
+        assert_eq!(paths.active(), primary);
     }
     #[test]
     fn splits_annex_b_h264_and_preserves_keyframe_priority() {
