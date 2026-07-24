@@ -37,17 +37,16 @@ fn run(args: &[String]) -> Result<(), Box<dyn std::error::Error>> {
 fn secure_demo() -> Result<(), Box<dyn std::error::Error>> {
     let publisher = Identity::generate();
     let subscriber = Identity::generate();
-    let sender = SecureUdpEndpoint::bind(
-        "127.0.0.1:0".parse()?,
-        publisher.establish(subscriber.public_key(), 77, 1),
-    )?;
-    let mut receiver = SecureUdpEndpoint::bind(
-        "127.0.0.1:0".parse()?,
-        subscriber.establish(publisher.public_key(), 77, 1),
-    )?;
+    let initiator = publisher.begin_handshake(77);
+    let (welcome, subscriber_session, authenticated_publisher) =
+        subscriber.accept_handshake(initiator.hello(), Some(publisher.public_key()))?;
+    assert_eq!(authenticated_publisher, publisher.public_key());
+    let publisher_session = initiator.complete(&welcome, subscriber.public_key())?;
+    let sender = SecureUdpEndpoint::bind("127.0.0.1:0".parse()?, publisher_session)?;
+    let mut receiver = SecureUdpEndpoint::bind("127.0.0.1:0".parse()?, subscriber_session)?;
     let mut header = Header::new(PacketType::Media);
     header.session_id = 77;
-    header.epoch = 1;
+    header.epoch = 0;
     header.sequence_number = 1;
     sender.send(receiver.local_addr()?, header, b"encrypted access unit")?;
     let until = Instant::now() + Duration::from_secs(1);

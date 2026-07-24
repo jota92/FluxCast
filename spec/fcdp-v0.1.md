@@ -51,7 +51,28 @@ The nonce is the 12-byte concatenation of `session_id` and `sequence_number`.
 Implementations must establish a fresh key for every epoch and reject duplicate
 or out-of-window sequence numbers before releasing plaintext.
 
-Peer public keys must be authenticated out of band until the versioned FCDP
-handshake specification is published. The current implementation exposes
-X25519 key agreement and secure UDP transport, but does not yet define an
-interoperable on-wire handshake.
+## Authenticated handshake profile
+
+The version-1 handshake is an application control exchange before encrypted
+FCDP traffic. It carries `ClientHello` (136 bytes) and `ServerWelcome` (168
+bytes). Both records use network byte order and must be carried intact; their
+wire codecs are exposed by `fluxcast-security` for every SDK binding.
+
+- `ClientHello` = session ID, client ephemeral X25519 public key, client
+  Ed25519 public identity, and an Ed25519 signature over the labelled client
+  transcript.
+- `ServerWelcome` = session ID, echoed client ephemeral key, server ephemeral
+  X25519 public key, server Ed25519 public identity, and a signature over the
+  complete client hello plus server ephemeral key.
+- Both sides pin/authorize the expected Ed25519 identity before accepting the
+  exchange. A server that admits arbitrary signed identities must still apply
+  an explicit authorization policy to the returned client identity.
+- The two ephemeral X25519 keys feed HKDF-SHA256. The labelled full transcript
+  is HKDF info, session ID is salt, and the 64-byte result is split into
+  client-to-server and server-to-client ChaCha20-Poly1305 keys. This provides
+  forward secrecy and prevents nonce reuse across directions.
+
+Handshakes are not media packets and must be rate-limited, expiry-bound, and
+bound to the selected ICE candidate pair by the connection layer. Key rotation
+creates a new handshake and uses the negotiated epoch in subsequent FCDP
+headers.
