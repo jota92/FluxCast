@@ -647,6 +647,23 @@ pub struct BitrateController {
     ceiling: u64,
 }
 
+/// Receiver report used by the adaptive sender. Counts cover one reporting
+/// interval; `late` means packets that arrived after their media deadline.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct TransportFeedback {
+    pub sent: u32,
+    pub received: u32,
+    pub late: u32,
+    pub rtt: Duration,
+}
+
+/// Encoder-facing action derived from an authenticated receiver report.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct AdaptationDecision {
+    pub target_bps: u64,
+    pub request_keyframe: bool,
+}
+
 impl BitrateController {
     #[must_use]
     pub const fn new(initial_bps: u64, floor_bps: u64, ceiling_bps: u64) -> Self {
@@ -672,6 +689,30 @@ impl BitrateController {
                 .current
                 .saturating_add((self.current / 20).max(1))
                 .min(self.ceiling);
+        }
+    }
+    /// Updates the target from a receiver report and requests a keyframe after
+    /// material video loss, so a decoder does not wait for a damaged GOP.
+    #[must_use]
+    pub fn observe_feedback(
+        &mut self,
+        feedback: TransportFeedback,
+        stable_for: Duration,
+    ) -> AdaptationDecision {
+        // A report interval is bounded to u16 for wire compatibility; clamp
+        // pathological counters before converting to the estimator's f32 API.
+        let sent = u16::try_from(feedback.sent.max(1)).unwrap_or(u16::MAX);
+        let received = u16::try_from(feedback.received)
+            .unwrap_or(u16::MAX)
+            .min(sent);
+        let lost = sent.saturating_sub(received);
+        let loss_rate = f32::from(lost) / f32::from(sent);
+        let late_rate =
+            f32::from(u16::try_from(feedback.late).unwrap_or(u16::MAX).min(sent)) / f32::from(sent);
+        self.observe(loss_rate, late_rate, stable_for);
+        AdaptationDecision {
+            target_bps: self.current,
+            request_keyframe: loss_rate > 0.05 || late_rate > 0.05,
         }
     }
 }
@@ -894,6 +935,21 @@ mod tests {
         assert_eq!(c.current_bps(), 800);
         c.observe(0.0, 0.0, Duration::from_secs(3));
         assert_eq!(c.current_bps(), 840);
+    }
+    #[test]
+    fn feedback_reduces_rate_and_requests_a_recovery_keyframe() {
+        let mut controller = BitrateController::new(1_000_000, 100_000, 2_000_000);
+        let decision = controller.observe_feedback(
+            TransportFeedback {
+                sent: 100,
+                received: 90,
+                late: 2,
+                rtt: Duration::from_millis(30),
+            },
+            Duration::ZERO,
+        );
+        assert_eq!(decision.target_bps, 800_000);
+        assert!(decision.request_keyframe);
     }
     #[test]
     fn parses_rfc5389_xor_mapped_ipv4_address() {

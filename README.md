@@ -8,7 +8,7 @@ FluxCast prioritizes the media that can still improve what a viewer sees or hear
 
 **Pre-alpha / M1 foundation.** The repository provides a codec-agnostic access-unit path that fragments data into 1200-byte-budget FCDP/UDP datagrams, validates headers, prioritizes audio/keyframes, drops expired queued packets, reassembles out-of-order fragments, performs one-loss XOR recovery, retains eligible audio/keyframe packets for retransmission, and exposes a conservative AIMD bitrate controller.
 
-It does **not** yet provide a versioned network handshake, NAT traversal, an H.264/Opus capture pipeline, browser support, or stable language bindings. It must not be used for confidential media or production traffic.
+The current implementation also includes a signed forward-secret session handshake (Ed25519 + ephemeral X25519 + HKDF), ChaCha20-Poly1305 packet protection with replay rejection, RFC 5389 STUN server-reflexive candidate discovery, multi-subscriber relay leases/metrics, and CLI H.264 Annex-B / Ogg Opus send-and-recover paths. These capabilities have local and public-STUN runtime checks, but the project is still pre-alpha: ICE nomination/TURN allocation, connection migration, browser interoperability, stable SDKs, production relay control-plane persistence, long-duration impairment testing, and an independent security review are unfinished. Do not use it for production or confidential media.
 
 ## Quick start
 
@@ -29,7 +29,7 @@ cargo run -p fluxcast-cli -- send 127.0.0.1:9000 "hello FluxCast"
 
 - `fluxcast-proto`: versioned FCDP packet framing and validation.
 - `fluxcast-core`: access-unit fragmentation, expiry scheduling, FEC, reassembly, retransmission cache, bitrate control, and a blocking UDP endpoint.
-- `fluxcast-security`: X25519 key agreement, ChaCha20-Poly1305 AEAD, and a replay window. Peer identities must be pinned out of band.
+- `fluxcast-security`: signed forward-secret session handshake, ChaCha20-Poly1305 AEAD, and replay protection. Peer identity pinning/authorization remains an application responsibility.
 - `fluxcast-cli`: local diagnostics and an end-to-end UDP demonstration.
 
 The intended product direction is native Publisher/Relay/Subscriber traffic over FCDP/UDP, H.264 access units and Opus packets as the first media targets, plus a separate browser gateway. A future Relay will never decode or transcode media.
