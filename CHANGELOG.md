@@ -7,6 +7,8 @@
   Mac receiver on a trusted LAN.
 - Added `fluxcast-cli receive-h264` for live reassembly to a local H.264
   decoder; the media round-trip test now exercises this receiver path.
+- Added an iPhone FCDP/H.264 receiver that remuxes to HLS for the existing
+  Flask player page, with an end-to-end local integration test.
 
 All notable changes will be recorded here.
 

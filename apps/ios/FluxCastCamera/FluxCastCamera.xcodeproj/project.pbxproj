@@ -1,7 +1,8 @@
 // !$*UTF8*$!
 {
 	archiveVersion = 1;
-	classes = {};
+	classes = {
+	};
 	objectVersion = 56;
 	objects = {
 
@@ -21,41 +22,204 @@
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
-		A10300000000000000000001 /* Frameworks */ = {isa = PBXFrameworksBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
+		A10300000000000000000001 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
-		A10400000000000000000001 = {isa = PBXGroup; children = (A10400000000000000000002 /* FluxCastCamera */, A10400000000000000000003 /* Products */); sourceTree = "<group>"; };
-		A10400000000000000000002 /* FluxCastCamera */ = {isa = PBXGroup; children = (A10200000000000000000001 /* FluxCastCameraApp.swift */, A10200000000000000000002 /* CameraPublisher.swift */, A10200000000000000000003 /* CameraPreview.swift */, A10200000000000000000004 /* FCDP.swift */); path = FluxCastCamera; sourceTree = "<group>"; };
-		A10400000000000000000003 /* Products */ = {isa = PBXGroup; children = (A10200000000000000000005 /* FluxCastCamera.app */); name = Products; sourceTree = "<group>"; };
+		A10400000000000000000001 = {
+			isa = PBXGroup;
+			children = (
+				A10400000000000000000002 /* FluxCastCamera */,
+				A10400000000000000000003 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		A10400000000000000000002 /* FluxCastCamera */ = {
+			isa = PBXGroup;
+			children = (
+				A10200000000000000000001 /* FluxCastCameraApp.swift */,
+				A10200000000000000000002 /* CameraPublisher.swift */,
+				A10200000000000000000003 /* CameraPreview.swift */,
+				A10200000000000000000004 /* FCDP.swift */,
+			);
+			path = FluxCastCamera;
+			sourceTree = "<group>";
+		};
+		A10400000000000000000003 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				A10200000000000000000005 /* FluxCastCamera.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-		A10500000000000000000001 /* FluxCastCamera */ = {isa = PBXNativeTarget; buildConfigurationList = A10700000000000000000001 /* Build configuration list for PBXNativeTarget "FluxCastCamera" */; buildPhases = (A10300000000000000000001 /* Frameworks */, A10800000000000000000001 /* Sources */, A10900000000000000000001 /* Resources */); buildRules = (); dependencies = (); name = FluxCastCamera; productName = FluxCastCamera; productReference = A10200000000000000000005 /* FluxCastCamera.app */; productType = "com.apple.product-type.application"; };
+		A10500000000000000000001 /* FluxCastCamera */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = A10700000000000000000001 /* Build configuration list for PBXNativeTarget "FluxCastCamera" */;
+			buildPhases = (
+				A10300000000000000000001 /* Frameworks */,
+				A10800000000000000000001 /* Sources */,
+				A10900000000000000000001 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = FluxCastCamera;
+			productName = FluxCastCamera;
+			productReference = A10200000000000000000005 /* FluxCastCamera.app */;
+			productType = "com.apple.product-type.application";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
-		A10600000000000000000001 /* Project object */ = {isa = PBXProject; attributes = { BuildIndependentTargetsInParallel = 1; LastSwiftUpdateCheck = 1600; LastUpgradeCheck = 1600; TargetAttributes = { A10500000000000000000001 = { CreatedOnToolsVersion = 16.0; }; }; }; buildConfigurationList = A10700000000000000000002 /* Build configuration list for PBXProject "FluxCastCamera" */; compatibilityVersion = "Xcode 14.0"; developmentRegion = en; hasScannedForEncodings = 0; knownRegions = (en, Base); mainGroup = A10400000000000000000001; productRefGroup = A10400000000000000000003 /* Products */; projectDirPath = ""; projectRoot = ""; targets = (A10500000000000000000001 /* FluxCastCamera */); };
+		A10600000000000000000001 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 1600;
+				LastUpgradeCheck = 1600;
+				TargetAttributes = {
+					A10500000000000000000001 = {
+						CreatedOnToolsVersion = 16.0;
+					};
+				};
+			};
+			buildConfigurationList = A10700000000000000000002 /* Build configuration list for PBXProject "FluxCastCamera" */;
+			compatibilityVersion = "Xcode 14.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = A10400000000000000000001;
+			productRefGroup = A10400000000000000000003 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				A10500000000000000000001 /* FluxCastCamera */,
+			);
+		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
-		A10900000000000000000001 /* Resources */ = {isa = PBXResourcesBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
+		A10900000000000000000001 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
-		A10800000000000000000001 /* Sources */ = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (A10100000000000000000001 /* FluxCastCameraApp.swift in Sources */, A10100000000000000000002 /* CameraPublisher.swift in Sources */, A10100000000000000000003 /* CameraPreview.swift in Sources */, A10100000000000000000004 /* FCDP.swift in Sources */); runOnlyForDeploymentPostprocessing = 0; };
+		A10800000000000000000001 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A10100000000000000000001 /* FluxCastCameraApp.swift in Sources */,
+				A10100000000000000000002 /* CameraPublisher.swift in Sources */,
+				A10100000000000000000003 /* CameraPreview.swift in Sources */,
+				A10100000000000000000004 /* FCDP.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin XCBuildConfiguration section */
-		A11000000000000000000001 /* Debug */ = {isa = XCBuildConfiguration; buildSettings = { ALWAYS_SEARCH_USER_PATHS = NO; CLANG_ENABLE_MODULES = YES; CLANG_ENABLE_OBJC_ARC = YES; DEBUG_INFORMATION_FORMAT = dwarf; GCC_C_LANGUAGE_STANDARD = gnu17; SWIFT_VERSION = 5.0; }; name = Debug; };
-		A11000000000000000000002 /* Release */ = {isa = XCBuildConfiguration; buildSettings = { ALWAYS_SEARCH_USER_PATHS = NO; CLANG_ENABLE_MODULES = YES; CLANG_ENABLE_OBJC_ARC = YES; GCC_C_LANGUAGE_STANDARD = gnu17; SWIFT_COMPILATION_MODE = wholemodule; SWIFT_VERSION = 5.0; }; name = Release; };
-		A11000000000000000000003 /* Debug */ = {isa = XCBuildConfiguration; buildSettings = { CODE_SIGN_STYLE = Automatic; CURRENT_PROJECT_VERSION = 1; DEVELOPMENT_TEAM = ""; GENERATE_INFOPLIST_FILE = YES; INFOPLIST_KEY_NSCameraUsageDescription = "FluxCastCamera sends camera video to the receiver you choose."; INFOPLIST_KEY_NSLocalNetworkUsageDescription = "FluxCastCamera sends video to a receiver on your local network."; IPHONEOS_DEPLOYMENT_TARGET = 17.0; MARKETING_VERSION = 0.1.0; PRODUCT_BUNDLE_IDENTIFIER = com.fluxcast.camera; PRODUCT_NAME = "$(TARGET_NAME)"; SDKROOT = iphoneos; SUPPORTED_PLATFORMS = "iphoneos iphonesimulator"; TARGETED_DEVICE_FAMILY = 1; }; name = Debug; };
-		A11000000000000000000004 /* Release */ = {isa = XCBuildConfiguration; buildSettings = { CODE_SIGN_STYLE = Automatic; CURRENT_PROJECT_VERSION = 1; DEVELOPMENT_TEAM = ""; GENERATE_INFOPLIST_FILE = YES; INFOPLIST_KEY_NSCameraUsageDescription = "FluxCastCamera sends camera video to the receiver you choose."; INFOPLIST_KEY_NSLocalNetworkUsageDescription = "FluxCastCamera sends video to a receiver on your local network."; IPHONEOS_DEPLOYMENT_TARGET = 17.0; MARKETING_VERSION = 0.1.0; PRODUCT_BUNDLE_IDENTIFIER = com.fluxcast.camera; PRODUCT_NAME = "$(TARGET_NAME)"; SDKROOT = iphoneos; SUPPORTED_PLATFORMS = "iphoneos iphonesimulator"; TARGETED_DEVICE_FAMILY = 1; }; name = Release; };
+		A11000000000000000000001 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		A11000000000000000000002 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
+		A11000000000000000000003 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = "";
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_NSCameraUsageDescription = "FluxCastCamera sends camera video to the receiver you choose.";
+				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "FluxCastCamera sends video to a receiver on your local network.";
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MARKETING_VERSION = 0.1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.fluxcast.camera;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Debug;
+		};
+		A11000000000000000000004 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = "";
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_NSCameraUsageDescription = "FluxCastCamera sends camera video to the receiver you choose.";
+				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "FluxCastCamera sends video to a receiver on your local network.";
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MARKETING_VERSION = 0.1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.fluxcast.camera;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
-		A10700000000000000000001 /* Build configuration list for PBXNativeTarget "FluxCastCamera" */ = {isa = XCConfigurationList; buildConfigurations = (A11000000000000000000003 /* Debug */, A11000000000000000000004 /* Release */); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
-		A10700000000000000000002 /* Build configuration list for PBXProject "FluxCastCamera" */ = {isa = XCConfigurationList; buildConfigurations = (A11000000000000000000001 /* Debug */, A11000000000000000000002 /* Release */); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
+		A10700000000000000000001 /* Build configuration list for PBXNativeTarget "FluxCastCamera" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				A11000000000000000000003 /* Debug */,
+				A11000000000000000000004 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		A10700000000000000000002 /* Build configuration list for PBXProject "FluxCastCamera" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				A11000000000000000000001 /* Debug */,
+				A11000000000000000000002 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
 /* End XCConfigurationList section */
 	};
 	rootObject = A10600000000000000000001 /* Project object */;

@@ -27,7 +27,7 @@
 <body>
 <header>
   <h1>FluxCast カメラデモ</h1>
-  <div class="sub">ローカルのカメラ映像・音声を FluxCast (FCDP/UDP) で受信側へ配送し、HLS で再生しています。</div>
+  <div class="sub">iPhoneまたはローカルカメラの映像を FluxCast (FCDP/UDP) で受信し、HLS で再生しています。</div>
 </header>
 <div class="stage">
   <video id="video" controls autoplay muted playsinline></video>
@@ -36,8 +36,7 @@
     <button id="unmute">音声をオンにする</button>
   </div>
   <div class="path">
-    camera + mic → ffmpeg(H.264/AAC) → fluxcast publish-ts → FCDP/UDP →
-    receiver fcdp_ts_receive.py → ffmpeg(HLS, 再エンコードなし) → app.py → このページ
+    camera → H.264 → FCDP/UDP → receiver → ffmpeg(HLS) → app.py → このページ
   </div>
 </div>
 <script src="/static/hls.min.js"></script>

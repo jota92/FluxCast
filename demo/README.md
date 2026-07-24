@@ -13,6 +13,21 @@ camera + mic → ffmpeg (H.264/AAC, MPEG-TS)
 The receiver never decrypts or re-encodes media; ffmpeg only repackages the
 MPEG-TS into HLS segments for browser playback.
 
+## iPhone camera to the Flask page
+
+For [`FluxCastCamera`](../apps/ios/FluxCastCamera/README.ja.md), run this on
+the Mac that will host the Flask page:
+
+```sh
+FLUXCAST_HLS_DIR=/tmp/fluxcast-hls bash demo/run_iphone_receiver.sh 0.0.0.0:19100 &
+FLUXCAST_HLS_DIR=/tmp/fluxcast-hls PORT=8000 python3 demo/app.py
+```
+
+Enter the Mac's Wi-Fi address and port `19100` in the iPhone app, then open
+`http://<MAC-LAN-IP>:8000/` in a browser. The page will start playing after the
+first H.264 keyframe and HLS segment are produced. This direct-LAN demo carries
+video only and is not the encrypted-session path.
+
 ## Receiver side
 
 Deployed to the `fluxcast-lab` VM as two systemd services:
