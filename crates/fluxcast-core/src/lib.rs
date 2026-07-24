@@ -28,6 +28,89 @@ pub struct ServerReflexiveCandidate {
     pub stun_server: SocketAddr,
 }
 
+/// Multi-viewer subscription registry for a media relay.
+///
+/// A control plane authorizes subscriptions and refreshes them before their
+/// lease expires. The relay only sees encrypted FCDP datagrams and therefore
+/// never needs access to media keys.
+#[derive(Debug, Default)]
+pub struct RelaySubscriptions {
+    subscriptions: HashMap<u64, HashMap<SocketAddr, Instant>>,
+    forwarded_packets: u64,
+    forwarded_bytes: u64,
+    expired_subscriptions: u64,
+}
+
+/// A stable snapshot suitable for a metrics endpoint or health probe.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct RelayMetrics {
+    pub active_sessions: usize,
+    pub active_subscribers: usize,
+    pub forwarded_packets: u64,
+    pub forwarded_bytes: u64,
+    pub expired_subscriptions: u64,
+}
+
+impl RelaySubscriptions {
+    #[must_use]
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Creates or renews one subscriber lease.
+    pub fn subscribe(&mut self, session_id: u64, subscriber: SocketAddr, expires_at: Instant) {
+        self.subscriptions
+            .entry(session_id)
+            .or_default()
+            .insert(subscriber, expires_at);
+    }
+
+    /// Explicitly removes a subscriber, for example after a control-plane close.
+    pub fn unsubscribe(&mut self, session_id: u64, subscriber: SocketAddr) -> bool {
+        let Some(subscribers) = self.subscriptions.get_mut(&session_id) else {
+            return false;
+        };
+        let removed = subscribers.remove(&subscriber).is_some();
+        if subscribers.is_empty() {
+            self.subscriptions.remove(&session_id);
+        }
+        removed
+    }
+
+    /// Returns currently leased subscribers and removes expired leases.
+    #[must_use]
+    pub fn recipients(&mut self, session_id: u64, now: Instant) -> Vec<SocketAddr> {
+        let Some(subscribers) = self.subscriptions.get_mut(&session_id) else {
+            return Vec::new();
+        };
+        let before = subscribers.len();
+        subscribers.retain(|_, expires_at| *expires_at > now);
+        self.expired_subscriptions += (before - subscribers.len()) as u64;
+        let recipients = subscribers.keys().copied().collect();
+        if subscribers.is_empty() {
+            self.subscriptions.remove(&session_id);
+        }
+        recipients
+    }
+
+    /// Records packets successfully handed to the OS for a subscriber.
+    pub fn record_forward(&mut self, bytes: usize) {
+        self.forwarded_packets = self.forwarded_packets.saturating_add(1);
+        self.forwarded_bytes = self.forwarded_bytes.saturating_add(bytes as u64);
+    }
+
+    #[must_use]
+    pub fn metrics(&self) -> RelayMetrics {
+        RelayMetrics {
+            active_sessions: self.subscriptions.len(),
+            active_subscribers: self.subscriptions.values().map(HashMap::len).sum(),
+            forwarded_packets: self.forwarded_packets,
+            forwarded_bytes: self.forwarded_bytes,
+            expired_subscriptions: self.expired_subscriptions,
+        }
+    }
+}
+
 /// Queries a STUN server for the public UDP mapping of a locally-bound socket.
 ///
 /// This is the server-reflexive-candidate half of ICE. Candidate pairing,
@@ -732,5 +815,26 @@ mod tests {
             parse_stun_binding_success(&response, transaction_id).unwrap(),
             "203.0.113.7:50000".parse().unwrap()
         );
+    }
+    #[test]
+    fn relay_subscriptions_fan_out_and_expire() {
+        let now = Instant::now();
+        let first = "127.0.0.1:30001".parse().unwrap();
+        let second = "127.0.0.1:30002".parse().unwrap();
+        let mut relay = RelaySubscriptions::new();
+        relay.subscribe(42, first, now + Duration::from_secs(1));
+        relay.subscribe(42, second, now + Duration::from_millis(1));
+        assert_eq!(relay.recipients(42, now), vec![first, second]);
+        relay.record_forward(1200);
+        relay.record_forward(100);
+        assert_eq!(relay.metrics().forwarded_bytes, 1300);
+        assert!(
+            relay
+                .recipients(42, now + Duration::from_secs(2))
+                .is_empty()
+        );
+        let metrics = relay.metrics();
+        assert_eq!(metrics.active_sessions, 0);
+        assert_eq!(metrics.expired_subscriptions, 2);
     }
 }

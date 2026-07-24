@@ -1,11 +1,12 @@
 use std::env;
+use std::io::Write;
 use std::net::{SocketAddr, ToSocketAddrs, UdpSocket};
 use std::thread;
 use std::time::{Duration, Instant};
 
 use fluxcast_core::{
-    AccessUnit, MAX_MEDIA_PAYLOAD, MediaKind, Reassembler, SecureUdpEndpoint, UdpEndpoint,
-    discover_server_reflexive_candidate, fragment_access_unit,
+    AccessUnit, MAX_MEDIA_PAYLOAD, MediaKind, Reassembler, RelaySubscriptions, SecureUdpEndpoint,
+    UdpEndpoint, discover_server_reflexive_candidate, fragment_access_unit,
 };
 use fluxcast_proto::{Header, PacketType};
 use fluxcast_security::Identity;
@@ -86,22 +87,42 @@ fn secure_demo() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 fn relay(args: &[String]) -> Result<(), Box<dyn std::error::Error>> {
-    let [bind, subscriber] = args else {
-        return Err("usage: fluxcast-cli relay <bind-host:port> <subscriber-host:port>".into());
+    let [bind, session_id, subscribers @ ..] = args else {
+        return Err(
+            "usage: fluxcast-cli relay <bind-host:port> <session-id> <subscriber-host:port>..."
+                .into(),
+        );
     };
+    if subscribers.is_empty() {
+        return Err("relay requires at least one subscriber".into());
+    }
     let endpoint = UdpEndpoint::bind(bind.parse()?)?;
-    let subscriber: SocketAddr = subscriber.parse()?;
+    let session_id = session_id.parse()?;
+    let mut registry = RelaySubscriptions::new();
+    let lease = Instant::now() + Duration::from_secs(3600);
+    for subscriber in subscribers {
+        registry.subscribe(session_id, subscriber.parse()?, lease);
+    }
     println!(
-        "relay listening on {}; forwarding to {subscriber}",
-        endpoint.local_addr()?
+        "relay listening on {}; session {session_id} has {} subscribers",
+        endpoint.local_addr()?,
+        subscribers.len()
     );
     let mut buffer = vec![0; 1200];
+    let mut next_metrics = Instant::now() + Duration::from_secs(10);
     loop {
         match endpoint.receive(&mut buffer)? {
-            Some((_, length, _)) => {
-                endpoint.send(subscriber, &buffer[..length])?;
+            Some((header, length, _)) => {
+                for subscriber in registry.recipients(header.session_id, Instant::now()) {
+                    endpoint.send(subscriber, &buffer[..length])?;
+                    registry.record_forward(length);
+                }
             }
             None => thread::sleep(Duration::from_millis(1)),
+        }
+        if Instant::now() >= next_metrics {
+            println!("relay metrics: {:?}", registry.metrics());
+            next_metrics += Duration::from_secs(10);
         }
     }
 }
@@ -147,6 +168,7 @@ fn receive(args: &[String]) -> Result<(), Box<dyn std::error::Error>> {
                         frame.len(),
                         String::from_utf8_lossy(&frame)
                     );
+                    std::io::stdout().flush()?;
                 }
             }
             None => thread::sleep(Duration::from_millis(2)),
@@ -192,6 +214,6 @@ fn demo() -> Result<(), Box<dyn std::error::Error>> {
 
 fn print_help() {
     println!(
-        "FluxCast pre-alpha diagnostic CLI\n\nCommands:\n  send <host:port> <text>                 send a deadline-aware test access unit\n  receive <host:port>                     receive test access units for 30 seconds\n  relay <bind> <subscriber-host:port>     validate and forward FCDP datagrams\n  stun <host:port>                        discover a server-reflexive UDP candidate\n  demo                                    run an in-process UDP fragmentation/reassembly demo\n  secure-demo                             run an authenticated encrypted UDP demo"
+        "FluxCast pre-alpha diagnostic CLI\n\nCommands:\n  send <host:port> <text>                 send a deadline-aware test access unit\n  receive <host:port>                     receive test access units for 30 seconds\n  relay <bind> <session-id> <subscriber>... fan out one session to viewers\n  stun <host:port>                        discover a server-reflexive UDP candidate\n  demo                                    run an in-process UDP fragmentation/reassembly demo\n  secure-demo                             run an authenticated encrypted UDP demo"
     );
 }
