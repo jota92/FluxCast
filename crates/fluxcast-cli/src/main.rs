@@ -36,6 +36,7 @@ fn run(args: &[String]) -> Result<(), Box<dyn std::error::Error>> {
         Some("turn-recv") => turn_recv(&args[1..]),
         Some("publish-ts") => publish_ts(&args[1..]),
         Some("receive-ts") => receive_ts(&args[1..]),
+        Some("receive-h264") => receive_h264(&args[1..]),
         Some("send-h264") => send_h264(&args[1..]),
         Some("send-opus") => send_opus(&args[1..]),
         Some("receive-file") => receive_file(&args[1..]),
@@ -381,6 +382,35 @@ fn receive_ts(args: &[String]) -> Result<(), Box<dyn std::error::Error>> {
     }
 }
 
+/// Reassembles Annex-B H.264 access units to stdout for a local decoder.
+/// Status is written to stderr so this command is safe to pipe into a player.
+fn receive_h264(args: &[String]) -> Result<(), Box<dyn std::error::Error>> {
+    let [bind] = args else {
+        return Err(
+            "usage: fluxcast-cli receive-h264 <bind-host:port>  (writes Annex-B H.264 to stdout)"
+                .into(),
+        );
+    };
+    let endpoint = UdpEndpoint::bind(bind.parse()?)?;
+    eprintln!("receive-h264: listening on {}", endpoint.local_addr()?);
+    let mut stdout = std::io::stdout().lock();
+    let mut buffer = vec![0; 1200];
+    let mut frames = Reassembler::new();
+    loop {
+        match endpoint.receive(&mut buffer)? {
+            Some((header, length, peer)) => {
+                let (_, payload) = Header::decode(&buffer[..length])?;
+                if let Some(frame) = frames.push(header, payload, Instant::now())? {
+                    stdout.write_all(&frame)?;
+                    stdout.flush()?;
+                    eprintln!("receive-h264: {} bytes from {peer}", frame.len());
+                }
+            }
+            None => thread::sleep(Duration::from_millis(2)),
+        }
+    }
+}
+
 fn send_h264(args: &[String]) -> Result<(), Box<dyn std::error::Error>> {
     let [destination, input] = args else {
         return Err("usage: fluxcast-cli send-h264 <host:port> <annex-b.h264>".into());
@@ -699,6 +729,6 @@ fn demo() -> Result<(), Box<dyn std::error::Error>> {
 
 fn print_help() {
     println!(
-        "FluxCast pre-alpha diagnostic CLI\n\nCommands:\n  send <host:port> <text>                 send a deadline-aware test access unit\n  send-h264 <host:port> <annex-b.h264>    send H.264 Annex-B NAL units\n  send-opus <host:port> <input.opus>      send Ogg Opus pages\n  receive <host:port>                     receive test access units for 30 seconds\n  receive-file <bind> <output>            recover media stream to a file\n  publish-ts <host:port>                  stream stdin (MPEG-TS) as live FCDP\n  receive-ts <bind>                       write a live FCDP byte stream to stdout\n  relay <bind> <session-id> <subscriber>... fan out one session to viewers\n  stun <host:port>                        discover a server-reflexive UDP candidate\n  turn <host:port> <user> <pass>          allocate a TURN relay and verify forwarding\n  demo                                    run an in-process UDP fragmentation/reassembly demo\n  simulate [loss] [frames] [seed] [in-order] deterministic loss/reorder/deadline report\n  pipeline-demo [loss] [frames]           end-to-end sender/FEC/NACK/receiver recovery\n  secure-demo                             run an authenticated encrypted UDP demo"
+        "FluxCast pre-alpha diagnostic CLI\n\nCommands:\n  send <host:port> <text>                 send a deadline-aware test access unit\n  send-h264 <host:port> <annex-b.h264>    send H.264 Annex-B NAL units\n  send-opus <host:port> <input.opus>      send Ogg Opus pages\n  receive <host:port>                     receive test access units for 30 seconds\n  receive-file <bind> <output>            recover media stream to a file\n  publish-ts <host:port>                  stream stdin (MPEG-TS) as live FCDP\n  receive-ts <bind>                       write a live FCDP byte stream to stdout\n  receive-h264 <bind>                     write reassembled Annex-B H.264 to stdout\n  relay <bind> <session-id> <subscriber>... fan out one session to viewers\n  stun <host:port>                        discover a server-reflexive UDP candidate\n  turn <host:port> <user> <pass>          allocate a TURN relay and verify forwarding\n  demo                                    run an in-process UDP fragmentation/reassembly demo\n  simulate [loss] [frames] [seed] [in-order] deterministic loss/reorder/deadline report\n  pipeline-demo [loss] [frames]           end-to-end sender/FEC/NACK/receiver recovery\n  secure-demo                             run an authenticated encrypted UDP demo"
     );
 }

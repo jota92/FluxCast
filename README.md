@@ -67,6 +67,11 @@ cargo run -p fluxcast-cli -- send 127.0.0.1:9000 "hello FluxCast"
   authentication/origin policy. It is not a public Internet service by itself.
 - **Camera demonstration:** see [`demo/`](demo/) for camera/microphone to HLS
   playback. It is a demonstration deployment, not a production template.
+- **iPhone camera to this Mac:** open
+  [`apps/ios/FluxCastCamera/`](apps/ios/FluxCastCamera/) in Xcode. It sends
+  hardware-encoded H.264 over FCDP/UDP to the included live H.264 receiver.
+  This direct-LAN diagnostic path is intentionally separate from the encrypted
+  session path and must only be used on a trusted network.
 
 ### 3. Verify before changing the protocol
 

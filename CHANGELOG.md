@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+- Added `FluxCastCamera`, an iPhone Xcode project that captures and
+  hardware-encodes H.264, fragments it as FCDP/UDP, and sends it to a selected
+  Mac receiver on a trusted LAN.
+- Added `fluxcast-cli receive-h264` for live reassembly to a local H.264
+  decoder; the media round-trip test now exercises this receiver path.
+
 All notable changes will be recorded here.
 
 ## 0.1.0 — unreleased
