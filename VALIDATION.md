@@ -13,6 +13,27 @@ They were sent through the FCDP CLI and recovered with `receive-file`.
 | H.264 Annex-B | 9,848 | 9,848 | FFmpeg decoded recovered stream |
 | Ogg Opus | 10,062 | 10,062 | FFmpeg decoded recovered stream |
 
+## Deterministic impairment simulation
+
+`fluxcast-core::simulation` drives real fragmented access units through a seeded
+loss/reordering/expiry channel and recovers them with the production XOR-parity
+and deadline logic. Because it is seeded, the numbers are reproducible on any
+platform without a live network. Example (`cargo run -p fluxcast-cli -- simulate
+0.01 600 7`): at 1% datagram loss with reordering, every transmitted frame is
+delivered (single-fragment losses are recovered by parity), matching the spec's
+"no video stall at 1% loss" target. Raise the loss rate to observe parity
+saturation and deadline drops. The `simulation` unit tests assert clean
+delivery, reorder tolerance, single-loss recovery, deadline dropping, and
+per-seed determinism.
+
+## Cross-language wire test vectors
+
+`spec/test-vectors.json` pins canonical FCDP v0.1 packets. `cargo test -p
+fluxcast-proto --test vectors` proves the Rust reference reproduces the file
+byte-for-byte and round-trips every vector; `scripts/verify_vectors.sh`
+additionally confirms the Python and Node.js SDKs encode and decode the same
+bytes. This check runs in CI.
+
 ## External Relay check
 
 On 2026-07-24, a temporary FluxCast Relay and local receiver ran on the
@@ -45,7 +66,9 @@ Run local checks with:
 ```sh
 cargo test --workspace
 cargo run -p fluxcast-cli -- secure-demo
+cargo run -p fluxcast-cli -- simulate 0.02 300 1
 cargo run -p fluxcast-cli -- stun stun.l.google.com:19302
+bash scripts/verify_vectors.sh
 bash scripts/test_media_roundtrip.sh
 ```
 

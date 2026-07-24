@@ -5,6 +5,9 @@
 
 #![forbid(unsafe_code)]
 
+pub mod simulation;
+pub use simulation::{ChannelModel, SimulationReport, simulate_delivery};
+
 use std::collections::{BTreeMap, HashMap};
 use std::io;
 use std::net::{SocketAddr, UdpSocket};

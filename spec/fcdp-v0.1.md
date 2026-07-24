@@ -27,9 +27,12 @@ The current M0 implementation uses a fixed 37-byte header, followed by the decla
 | 33–34 | payload length (u16) |
 | 35–36 | header CRC-16/CCITT-FALSE (u16) |
 
-The header layout is intentionally marked draft until version negotiation and
-cross-language test vectors are published. Do not claim compatibility before
-those test vectors are available.
+The header layout is intentionally marked draft until version negotiation is
+finalized. Canonical cross-language test vectors are published in
+[`test-vectors.json`](test-vectors.json); the Rust, Python, and Node.js SDKs are
+checked against them by `scripts/verify_vectors.sh`. Regenerate the file after an
+intentional wire change with `FLUXCAST_BLESS=1 cargo test -p fluxcast-proto
+--test vectors`.
 
 ## Processing requirements
 

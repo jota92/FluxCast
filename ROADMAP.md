@@ -1,11 +1,14 @@
 # Roadmap
 
-## M0 — specification and local interoperability (current)
+## M0 — specification and local interoperability (complete)
 
 - [x] Rust workspace and packet parser foundation
 - [x] Packet round-trip and malformed-packet tests
-- [ ] RFC-quality FCDP v0.1 specification and test vectors
-- [ ] Localhost UDP sender/receiver and loss/reordering simulator
+- [x] FCDP v0.1 specification and cross-language test vectors
+      (`spec/test-vectors.json`, verified for Rust/Python/Node.js by
+      `scripts/verify_vectors.sh`)
+- [x] Localhost UDP sender/receiver and deterministic loss/reordering/expiry
+      simulator (`fluxcast-core::simulation`, `fluxcast-cli simulate`)
 
 ## Next milestones
 

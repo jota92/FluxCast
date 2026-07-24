@@ -5,9 +5,9 @@ use std::thread;
 use std::time::{Duration, Instant};
 
 use fluxcast_core::{
-    AccessUnit, MAX_MEDIA_PAYLOAD, MediaKind, Reassembler, RelaySubscriptions, SecureUdpEndpoint,
-    UdpEndpoint, discover_server_reflexive_candidate, fragment_access_unit, split_h264_annex_b,
-    split_ogg_pages,
+    AccessUnit, ChannelModel, MAX_MEDIA_PAYLOAD, MediaKind, Reassembler, RelaySubscriptions,
+    SecureUdpEndpoint, UdpEndpoint, discover_server_reflexive_candidate, fragment_access_unit,
+    simulate_delivery, split_h264_annex_b, split_ogg_pages,
 };
 use fluxcast_proto::{Header, PacketType};
 use fluxcast_security::Identity;
@@ -27,6 +27,7 @@ fn run(args: &[String]) -> Result<(), Box<dyn std::error::Error>> {
         Some("receive") => receive(&args[1..]),
         Some("relay") => relay(&args[1..]),
         Some("demo") => demo(),
+        Some("simulate") => simulate(&args[1..]),
         Some("secure-demo") => secure_demo(),
         Some("stun") => stun(&args[1..]),
         Some("send-h264") => send_h264(&args[1..]),
@@ -260,6 +261,74 @@ fn receive(args: &[String]) -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
+fn simulate(args: &[String]) -> Result<(), Box<dyn std::error::Error>> {
+    // usage: fluxcast-cli simulate [loss_rate] [frames] [seed] [reorder]
+    let loss_rate: f32 = args.first().map_or(Ok(0.02), |value| value.parse())?;
+    let frames: u32 = args.get(1).map_or(Ok(300), |value| value.parse())?;
+    let seed: u64 = args.get(2).map_or(Ok(1), |value| value.parse())?;
+    let reorder = args.get(3).is_none_or(|value| value != "in-order");
+    if !(0.0..=1.0).contains(&loss_rate) {
+        return Err("loss_rate must be between 0.0 and 1.0".into());
+    }
+
+    let now = Instant::now();
+    let deadline = now + Duration::from_millis(200);
+    // A representative GOP: one large keyframe followed by smaller delta frames.
+    let units: Vec<AccessUnit> = (0..frames)
+        .map(|frame_id| {
+            let is_key = frame_id % 60 == 0;
+            let bytes = if is_key {
+                MAX_MEDIA_PAYLOAD * 3 + 40
+            } else {
+                MAX_MEDIA_PAYLOAD + 20
+            };
+            AccessUnit {
+                stream_id: 1,
+                frame_id,
+                kind: if is_key {
+                    MediaKind::VideoKey
+                } else {
+                    MediaKind::VideoDelta
+                },
+                deadline,
+                bytes: vec![u8::try_from(frame_id % 251).unwrap_or(0); bytes],
+            }
+        })
+        .collect();
+
+    let model = ChannelModel {
+        loss_rate,
+        reorder,
+        propagation: Duration::from_millis(15),
+        seed,
+    };
+    let report = simulate_delivery(&units, 1, 0, &model, now)?;
+
+    println!("FluxCast impairment simulation (deterministic, seed {seed})");
+    println!(
+        "  channel:          loss={:.1}% reorder={} propagation=15ms",
+        loss_rate * 100.0,
+        reorder
+    );
+    println!("  frames offered:   {}", report.frames_offered);
+    println!(
+        "  datagrams:        {} sent, {} lost ({:.2}%)",
+        report.datagrams_sent,
+        report.datagrams_lost,
+        report.datagram_loss_rate() * 100.0
+    );
+    println!("  delivered clean:  {}", report.frames_delivered_clean);
+    println!("  recovered by FEC: {}", report.frames_recovered_by_fec);
+    println!("  dropped (late):   {}", report.frames_dropped_late);
+    println!("  dropped (lost):   {}", report.frames_dropped_lost);
+    println!(
+        "  frame delivery:   {:.2}%   fec recovery: {:.2}%",
+        report.frame_delivery_rate() * 100.0,
+        report.fec_recovery_rate() * 100.0
+    );
+    Ok(())
+}
+
 fn demo() -> Result<(), Box<dyn std::error::Error>> {
     let receiver = UdpEndpoint::bind("127.0.0.1:0".parse()?)?;
     let destination = receiver.local_addr()?;
@@ -297,6 +366,6 @@ fn demo() -> Result<(), Box<dyn std::error::Error>> {
 
 fn print_help() {
     println!(
-        "FluxCast pre-alpha diagnostic CLI\n\nCommands:\n  send <host:port> <text>                 send a deadline-aware test access unit\n  send-h264 <host:port> <annex-b.h264>    send H.264 Annex-B NAL units\n  send-opus <host:port> <input.opus>      send Ogg Opus pages\n  receive <host:port>                     receive test access units for 30 seconds\n  receive-file <bind> <output>            recover media stream to a file\n  relay <bind> <session-id> <subscriber>... fan out one session to viewers\n  stun <host:port>                        discover a server-reflexive UDP candidate\n  demo                                    run an in-process UDP fragmentation/reassembly demo\n  secure-demo                             run an authenticated encrypted UDP demo"
+        "FluxCast pre-alpha diagnostic CLI\n\nCommands:\n  send <host:port> <text>                 send a deadline-aware test access unit\n  send-h264 <host:port> <annex-b.h264>    send H.264 Annex-B NAL units\n  send-opus <host:port> <input.opus>      send Ogg Opus pages\n  receive <host:port>                     receive test access units for 30 seconds\n  receive-file <bind> <output>            recover media stream to a file\n  relay <bind> <session-id> <subscriber>... fan out one session to viewers\n  stun <host:port>                        discover a server-reflexive UDP candidate\n  demo                                    run an in-process UDP fragmentation/reassembly demo\n  simulate [loss] [frames] [seed] [in-order] deterministic loss/reorder/deadline report\n  secure-demo                             run an authenticated encrypted UDP demo"
     );
 }
