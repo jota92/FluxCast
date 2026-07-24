@@ -34,7 +34,7 @@ cargo run -p fluxcast-cli -- send 127.0.0.1:9000 "hello FluxCast"
 
 The intended product direction is native Publisher/Relay/Subscriber traffic over FCDP/UDP, H.264 access units and Opus packets as the first media targets, plus a separate browser gateway. A future Relay will never decode or transcode media.
 
-See [the protocol draft](spec/fcdp-v0.1.md), [the roadmap](ROADMAP.md), and [contributing guidance](CONTRIBUTING.md).
+See [the protocol draft](spec/fcdp-v0.1.md), [the validation record](VALIDATION.md), [the roadmap](ROADMAP.md), and [contributing guidance](CONTRIBUTING.md).
 
 ## License
 
