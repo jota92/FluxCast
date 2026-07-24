@@ -1,0 +1,15 @@
+[package]
+name = "fluxcast-cli"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Command-line diagnostics for FluxCast."
+
+[dependencies]
+fluxcast-proto = { path = "../fluxcast-proto", version = "0.1.0" }
+fluxcast-core = { path = "../fluxcast-core", version = "0.1.0" }
+
+[lints]
+workspace = true

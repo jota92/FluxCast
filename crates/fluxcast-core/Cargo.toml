@@ -1,0 +1,16 @@
+[package]
+name = "fluxcast-core"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Deadline-aware media framing, FEC, recovery and UDP transport for FluxCast."
+keywords.workspace = true
+categories.workspace = true
+
+[dependencies]
+fluxcast-proto = { path = "../fluxcast-proto", version = "0.1.0" }
+
+[lints]
+workspace = true

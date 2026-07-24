@@ -1,0 +1,24 @@
+name: Bug report
+description: Report a reproducible defect.
+labels: [bug]
+body:
+  - type: textarea
+    id: summary
+    attributes:
+      label: What happened?
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Minimal reproduction
+      description: Include version, OS, command, and expected versus actual behavior.
+    validations:
+      required: true
+  - type: checkboxes
+    id: security
+    attributes:
+      label: Disclosure
+      options:
+        - label: This report does not disclose a security vulnerability. I will use SECURITY.md for that.
+          required: true
