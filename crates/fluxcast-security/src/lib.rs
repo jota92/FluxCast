@@ -7,8 +7,12 @@
 
 use chacha20poly1305::aead::{AeadInPlace, KeyInit};
 use chacha20poly1305::{ChaCha20Poly1305, Key, Nonce, Tag};
+use fluxcast_proto::Header;
 use rand_core::OsRng;
 use x25519_dalek::{PublicKey, StaticSecret};
+
+/// Flag set on FCDP packets whose payload is protected by `Session`.
+pub const ENCRYPTED_FLAG: u8 = 0b0000_0001;
 
 /// A long-term X25519 identity. Persist its private bytes in a platform key
 /// store; never serialize it into application logs or configuration files.
@@ -105,6 +109,50 @@ impl Session {
         self.replay.accept(sequence);
         Ok(plaintext)
     }
+
+    /// Protects an FCDP payload and authenticates every header field except its
+    /// corruption-detection CRC. Only MEDIA/FEC/control payloads may use this;
+    /// a session handshake must remain separately specified.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the resulting packet exceeds the FCDP datagram
+    /// budget or encryption fails.
+    pub fn seal_fcdp(
+        &self,
+        mut header: Header,
+        plaintext: &[u8],
+    ) -> Result<Vec<u8>, SecurityError> {
+        header.flags |= ENCRYPTED_FLAG;
+        let protected_len = plaintext.len().saturating_add(Tag::default().len());
+        let associated_data = header
+            .associated_data(protected_len)
+            .map_err(|_| SecurityError::Packet)?;
+        let ciphertext = self.seal(header.sequence_number, &associated_data, plaintext)?;
+        let mut packet = Vec::new();
+        header
+            .encode(&ciphertext, &mut packet)
+            .map_err(|_| SecurityError::Packet)?;
+        Ok(packet)
+    }
+
+    /// Parses, authenticates, replays-checks, and decrypts an encrypted FCDP packet.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error for invalid FCDP framing, unencrypted packets, replay,
+    /// or authentication failure.
+    pub fn open_fcdp(&mut self, packet: &[u8]) -> Result<(Header, Vec<u8>), SecurityError> {
+        let (header, ciphertext) = Header::decode(packet).map_err(|_| SecurityError::Packet)?;
+        if header.flags & ENCRYPTED_FLAG == 0 {
+            return Err(SecurityError::Unencrypted);
+        }
+        let associated_data = header
+            .associated_data(ciphertext.len())
+            .map_err(|_| SecurityError::Packet)?;
+        let plaintext = self.open(header.sequence_number, &associated_data, ciphertext)?;
+        Ok((header, plaintext))
+    }
 }
 
 fn nonce(session_id: u64, sequence: u32) -> Nonce {
@@ -167,6 +215,8 @@ pub enum SecurityError {
     Authentication,
     Replay,
     Truncated,
+    Packet,
+    Unencrypted,
 }
 impl std::fmt::Display for SecurityError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -178,6 +228,7 @@ impl std::error::Error for SecurityError {}
 #[cfg(test)]
 mod tests {
     use super::*;
+    use fluxcast_proto::PacketType;
     #[test]
     fn authenticated_peers_share_a_session_key() {
         let a = Identity::generate();
@@ -203,5 +254,27 @@ mod tests {
             receiver.open(1, b"h", &encrypted),
             Err(SecurityError::Replay)
         );
+    }
+    #[test]
+    fn encrypted_fcdp_authenticates_its_header() {
+        let a = Identity::generate();
+        let b = Identity::generate();
+        let sender = a.establish(b.public_key(), 4, 1);
+        let mut receiver = b.establish(a.public_key(), 4, 1);
+        let mut header = Header::new(PacketType::Media);
+        header.session_id = 4;
+        header.epoch = 1;
+        header.sequence_number = 9;
+        let packet = sender.seal_fcdp(header, b"video").unwrap();
+        let mut altered = packet.clone();
+        let last = altered.len() - 1;
+        altered[last] ^= 1;
+        assert_eq!(
+            receiver.open_fcdp(&altered),
+            Err(SecurityError::Authentication)
+        );
+        let (actual, payload) = receiver.open_fcdp(&packet).unwrap();
+        assert_eq!(actual.sequence_number, 9);
+        assert_eq!(payload, b"video");
     }
 }

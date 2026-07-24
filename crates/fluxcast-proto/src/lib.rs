@@ -14,6 +14,8 @@ pub const MAGIC: [u8; 2] = *b"FC";
 pub const VERSION_0_1: u8 = 1;
 /// Fixed size of a v0.1 header, in bytes.
 pub const HEADER_LEN: usize = 37;
+/// Size of the header fields authenticated by FCDP's AEAD session layer.
+pub const AUTHENTICATED_HEADER_LEN: usize = HEADER_LEN - 2;
 /// Maximum recommended UDP datagram size, avoiding IP fragmentation.
 pub const DEFAULT_MAX_DATAGRAM_LEN: usize = 1200;
 
@@ -117,24 +119,44 @@ impl Header {
             return Err(EncodeError::DatagramTooLarge);
         }
         let payload_len = u16::try_from(payload.len()).map_err(|_| EncodeError::PayloadTooLarge)?;
+        let prefix = self.authenticated_bytes(payload_len);
         output.clear();
         output.reserve(HEADER_LEN + payload.len());
-        output.extend_from_slice(&MAGIC);
-        output.extend_from_slice(&[self.version, self.packet_type as u8, self.flags, 0]);
-        output.extend_from_slice(&self.session_id.to_be_bytes());
-        output.extend_from_slice(&self.stream_id.to_be_bytes());
-        output.extend_from_slice(&self.epoch.to_be_bytes());
-        output.extend_from_slice(&self.sequence_number.to_be_bytes());
-        output.extend_from_slice(&self.frame_id.to_be_bytes());
-        output.extend_from_slice(&self.fragment_index.to_be_bytes());
-        output.extend_from_slice(&self.fragment_count.to_be_bytes());
-        output.push(self.priority);
-        output.extend_from_slice(&self.deadline_ms.to_be_bytes());
-        output.extend_from_slice(&payload_len.to_be_bytes());
-        let checksum = crc16(&output[..HEADER_LEN - 2]);
+        output.extend_from_slice(&prefix);
+        let checksum = crc16(&prefix);
         output.extend_from_slice(&checksum.to_be_bytes());
         output.extend_from_slice(payload);
         Ok(())
+    }
+
+    /// Returns the exact header bytes used as AEAD associated data.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when payload length cannot fit in a v0.1 header.
+    pub fn associated_data(
+        self,
+        payload_len: usize,
+    ) -> Result<[u8; AUTHENTICATED_HEADER_LEN], EncodeError> {
+        let length = u16::try_from(payload_len).map_err(|_| EncodeError::PayloadTooLarge)?;
+        Ok(self.authenticated_bytes(length))
+    }
+
+    fn authenticated_bytes(self, payload_len: u16) -> [u8; AUTHENTICATED_HEADER_LEN] {
+        let mut output = [0_u8; AUTHENTICATED_HEADER_LEN];
+        output[..2].copy_from_slice(&MAGIC);
+        output[2..6].copy_from_slice(&[self.version, self.packet_type as u8, self.flags, 0]);
+        output[6..14].copy_from_slice(&self.session_id.to_be_bytes());
+        output[14..16].copy_from_slice(&self.stream_id.to_be_bytes());
+        output[16..18].copy_from_slice(&self.epoch.to_be_bytes());
+        output[18..22].copy_from_slice(&self.sequence_number.to_be_bytes());
+        output[22..26].copy_from_slice(&self.frame_id.to_be_bytes());
+        output[26..28].copy_from_slice(&self.fragment_index.to_be_bytes());
+        output[28..30].copy_from_slice(&self.fragment_count.to_be_bytes());
+        output[30] = self.priority;
+        output[31..33].copy_from_slice(&self.deadline_ms.to_be_bytes());
+        output[33..35].copy_from_slice(&payload_len.to_be_bytes());
+        output
     }
 
     /// Parses and validates an entire FCDP datagram.
