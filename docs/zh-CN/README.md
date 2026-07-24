@@ -29,7 +29,7 @@ cargo run -p fluxcast-cli -- send 127.0.0.1:9000 "hello FluxCast"
 ## 如何集成
 
 - **Rust：**以 `fluxcast-proto`、`fluxcast-core` 和 `fluxcast-security` 为基础接入；API 尚未稳定。
-- **其他语言：**使用 [`sdk/`](../../sdk/) 的最小实现和 [`spec/test-vectors.json`](../../spec/test-vectors.json) 验证 FCDP 编解码。Python 与 Node.js 已在 CI 中完成向量验证。
+- **其他语言：**使用 [`sdk/`](../../sdk/) 的最小实现和 [`spec/test-vectors.json`](../../spec/test-vectors.json) 验证 FCDP 编解码。Python 与 Node.js 可通过仓库附带脚本完成向量验证。
 - **浏览器：**可使用 [`gateway/README.md`](../../gateway/README.md) 中的 WebSocket→UDP Gateway。对外部署前必须配置 TLS、应用自己的认证、Origin 限制和限流。
 - **摄像头演示：**[`demo/`](../../demo/) 提供从摄像头和麦克风到 HLS 播放的演示；它不是生产部署模板。
 

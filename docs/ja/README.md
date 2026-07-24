@@ -30,7 +30,7 @@ cargo run -p fluxcast-cli -- send 127.0.0.1:9000 "hello FluxCast"
 ## 取り入れ方
 
 - **Rust:** `fluxcast-proto`、`fluxcast-core`、`fluxcast-security` を基に組み込みます。API はまだ安定化前です。
-- **他言語:** [`sdk/`](../../sdk/) の最小実装と [`spec/test-vectors.json`](../../spec/test-vectors.json) を使って FCDP の入出力を確認します。Python と Node.js は CI でベクトル検証済みです。
+- **他言語:** [`sdk/`](../../sdk/) の最小実装と [`spec/test-vectors.json`](../../spec/test-vectors.json) を使って FCDP の入出力を確認します。Python と Node.js は同梱スクリプトでベクトル検証できます。
 - **ブラウザ:** [`gateway/README.md`](../../gateway/README.md) の WebSocket→UDP Gateway を使えます。公開時は必ず TLS、独自認証、Origin 制限、レート制限を設定してください。
 - **カメラの実演:** [`demo/`](../../demo/) にカメラ・マイクから HLS 再生までのデモがあります。これは本番構成の雛形ではありません。
 

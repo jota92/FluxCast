@@ -25,7 +25,7 @@ The current implementation also includes a cohesive deadline-aware media pipelin
 
 For connectivity it provides RFC 5389 STUN server-reflexive discovery, a TURN client (RFC 5766/8489) for relayed NAT traversal — validated end to end against coturn on Azure — and an authenticated ICE connectivity-check agent (RFC 8445) with `USE-CANDIDATE` nomination. Security is a signed forward-secret handshake (Ed25519 + ephemeral X25519 + HKDF) with ChaCha20-Poly1305 packet protection and replay rejection. It also ships a WebSocket→UDP browser gateway (validated live and by `scripts/test_gateway.sh`), multi-subscriber relay leases, a Prometheus/OpenMetrics diagnostics module, and CLI H.264 Annex-B / Ogg Opus send-and-recover paths.
 
-A deterministic loss/reordering/expiry simulator (`fluxcast-cli simulate`) demonstrates FEC recovery without a live network; `spec/test-vectors.json` and `spec/control-vectors.json` pin canonical FCDP framing and control payloads (checked across the Rust, Python, and Node.js SDKs); and CI builds and tests on Linux, macOS, and Windows. The project is still pre-alpha: a full ICE state machine, connection migration, WebTransport, stable SDK APIs, production relay control-plane persistence, measured glass-to-glass performance, and an independent security review are unfinished. Do not use it for production or confidential media.
+A deterministic loss/reordering/expiry simulator (`fluxcast-cli simulate`) demonstrates FEC recovery without a live network; `spec/test-vectors.json` and `spec/control-vectors.json` pin canonical FCDP framing and control payloads, with reproducible Rust, Python, and Node.js checks. The project is still pre-alpha: a full ICE state machine, connection migration, WebTransport, stable SDK APIs, production relay control-plane persistence, measured glass-to-glass performance, and an independent security review are unfinished. Do not use it for production or confidential media.
 
 ## Quick start
 
@@ -55,7 +55,8 @@ cargo run -p fluxcast-cli -- send 127.0.0.1:9000 "hello FluxCast"
   stabilizing: `fluxcast-proto`, `fluxcast-core`, and `fluxcast-security`.
 - **Protocol integration:** start from the pinned byte examples in
   [`spec/test-vectors.json`](spec/test-vectors.json), then use the minimal
-  SDKs in [`sdk/`](sdk/). Python and Node vectors are verified in CI; Go,
+  SDKs in [`sdk/`](sdk/). Python and Node vectors are verified by the included
+  scripts; Go,
   Swift, and Kotlin bindings are early-stage reference implementations.
 - **Browser experiment:** run the documented
   [WebSocket-to-UDP gateway](gateway/README.md) behind TLS and your own
