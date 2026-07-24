@@ -96,7 +96,12 @@ fn control_payloads_match_committed_vectors() {
         std::fs::write(&path, &rendered).unwrap();
         return;
     }
-    let committed = std::fs::read_to_string(&path).expect("read spec/control-vectors.json");
+    // Git may check text files out as CRLF on Windows. The vector format is
+    // line-oriented JSON, so line-ending conversion must not make a canonical
+    // vector test fail; the actual field bytes are asserted below.
+    let committed = std::fs::read_to_string(&path)
+        .expect("read spec/control-vectors.json")
+        .replace("\r\n", "\n");
     assert_eq!(
         committed, rendered,
         "spec/control-vectors.json is stale; regenerate with FLUXCAST_BLESS=1"
