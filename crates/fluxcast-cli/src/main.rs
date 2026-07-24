@@ -5,9 +5,10 @@ use std::thread;
 use std::time::{Duration, Instant};
 
 use fluxcast_core::{
-    AccessUnit, ChannelModel, MAX_MEDIA_PAYLOAD, MediaKind, Reassembler, RelaySubscriptions,
-    SecureUdpEndpoint, UdpEndpoint, discover_server_reflexive_candidate, fragment_access_unit,
-    simulate_delivery, split_h264_annex_b, split_ogg_pages,
+    AccessUnit, ChannelModel, Delivered, FecPolicy, MAX_MEDIA_PAYLOAD, MediaKind, MediaReceiver,
+    MediaSender, Reassembler, RelaySubscriptions, SecureUdpEndpoint, UdpEndpoint,
+    discover_server_reflexive_candidate, fragment_access_unit, simulate_delivery,
+    split_h264_annex_b, split_ogg_pages,
 };
 use fluxcast_proto::{Header, PacketType};
 use fluxcast_security::Identity;
@@ -28,6 +29,7 @@ fn run(args: &[String]) -> Result<(), Box<dyn std::error::Error>> {
         Some("relay") => relay(&args[1..]),
         Some("demo") => demo(),
         Some("simulate") => simulate(&args[1..]),
+        Some("pipeline-demo") => pipeline_demo(&args[1..]),
         Some("secure-demo") => secure_demo(),
         Some("stun") => stun(&args[1..]),
         Some("send-h264") => send_h264(&args[1..]),
@@ -329,6 +331,97 @@ fn simulate(args: &[String]) -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
+fn pipeline_demo(args: &[String]) -> Result<(), Box<dyn std::error::Error>> {
+    // usage: fluxcast-cli pipeline-demo [loss_rate] [frames]
+    let loss_rate: f32 = args.first().map_or(Ok(0.15), |value| value.parse())?;
+    let frames: u32 = args.get(1).map_or(Ok(120), |value| value.parse())?;
+    if !(0.0..=1.0).contains(&loss_rate) {
+        return Err("loss_rate must be between 0.0 and 1.0".into());
+    }
+
+    let now = Instant::now();
+    let deadline = now + Duration::from_secs(2);
+    let mut sender = MediaSender::new(1, 0, FecPolicy::PerFrame, 8192);
+    let mut receiver = MediaReceiver::new();
+    let mut state = 0x9e37_79b9_7f4a_7c15_u64;
+    let drop_next = |state: &mut u64| {
+        *state ^= *state << 13;
+        *state ^= *state >> 7;
+        *state ^= *state << 17;
+        #[allow(clippy::cast_precision_loss)]
+        let unit = (*state >> 40) as f32 / 16_777_216.0;
+        unit < loss_rate
+    };
+
+    let (mut sent, mut lost, mut clean, mut recovered, mut nack_healed) =
+        (0u32, 0u32, 0u32, 0u32, 0u32);
+
+    for frame_id in 0..frames {
+        // Every 30th frame is a keyframe; the rest are delta video.
+        let is_key = frame_id % 30 == 0;
+        let unit = AccessUnit {
+            stream_id: 1,
+            frame_id,
+            kind: if is_key {
+                MediaKind::VideoKey
+            } else {
+                MediaKind::VideoDelta
+            },
+            deadline,
+            bytes: vec![
+                u8::try_from(frame_id % 251).unwrap_or(0);
+                if is_key {
+                    MAX_MEDIA_PAYLOAD * 2 + 9
+                } else {
+                    MAX_MEDIA_PAYLOAD + 5
+                }
+            ],
+        };
+        let datagrams = sender.encode_access_unit(&unit, now)?;
+        for datagram in &datagrams {
+            sent += 1;
+            if drop_next(&mut state) {
+                lost += 1;
+                continue;
+            }
+            let (header, payload) = Header::decode(&datagram.bytes)?;
+            match receiver.accept(header, payload, now)? {
+                Delivered::Clean(_) => clean += 1,
+                Delivered::Recovered(_) => recovered += 1,
+                Delivered::Pending | Delivered::Duplicate => {}
+            }
+        }
+        // One NACK round; only cached audio/keyframe fragments come back.
+        let nacks = receiver.nack_requests(now);
+        for datagram in sender.on_nack(&nacks, now) {
+            sent += 1;
+            if drop_next(&mut state) {
+                lost += 1;
+                continue;
+            }
+            let (header, payload) = Header::decode(&datagram.bytes)?;
+            if matches!(
+                receiver.accept(header, payload, now)?,
+                Delivered::Clean(_) | Delivered::Recovered(_)
+            ) {
+                nack_healed += 1;
+            }
+        }
+    }
+    // Frames not completed by clean delivery, FEC, or NACK are undelivered.
+    let dropped = frames - clean - recovered - nack_healed;
+
+    println!("FluxCast M1 pipeline demo (FEC=PerFrame, one NACK round)");
+    println!("  channel loss:        {:.1}%", loss_rate * 100.0);
+    println!("  frames:              {frames}");
+    println!("  datagrams sent/lost: {sent} / {lost}");
+    println!("  delivered clean:     {clean}");
+    println!("  recovered by FEC:    {recovered}");
+    println!("  recovered by NACK:   {nack_healed}");
+    println!("  undelivered:         {dropped}");
+    Ok(())
+}
+
 fn demo() -> Result<(), Box<dyn std::error::Error>> {
     let receiver = UdpEndpoint::bind("127.0.0.1:0".parse()?)?;
     let destination = receiver.local_addr()?;
@@ -366,6 +459,6 @@ fn demo() -> Result<(), Box<dyn std::error::Error>> {
 
 fn print_help() {
     println!(
-        "FluxCast pre-alpha diagnostic CLI\n\nCommands:\n  send <host:port> <text>                 send a deadline-aware test access unit\n  send-h264 <host:port> <annex-b.h264>    send H.264 Annex-B NAL units\n  send-opus <host:port> <input.opus>      send Ogg Opus pages\n  receive <host:port>                     receive test access units for 30 seconds\n  receive-file <bind> <output>            recover media stream to a file\n  relay <bind> <session-id> <subscriber>... fan out one session to viewers\n  stun <host:port>                        discover a server-reflexive UDP candidate\n  demo                                    run an in-process UDP fragmentation/reassembly demo\n  simulate [loss] [frames] [seed] [in-order] deterministic loss/reorder/deadline report\n  secure-demo                             run an authenticated encrypted UDP demo"
+        "FluxCast pre-alpha diagnostic CLI\n\nCommands:\n  send <host:port> <text>                 send a deadline-aware test access unit\n  send-h264 <host:port> <annex-b.h264>    send H.264 Annex-B NAL units\n  send-opus <host:port> <input.opus>      send Ogg Opus pages\n  receive <host:port>                     receive test access units for 30 seconds\n  receive-file <bind> <output>            recover media stream to a file\n  relay <bind> <session-id> <subscriber>... fan out one session to viewers\n  stun <host:port>                        discover a server-reflexive UDP candidate\n  demo                                    run an in-process UDP fragmentation/reassembly demo\n  simulate [loss] [frames] [seed] [in-order] deterministic loss/reorder/deadline report\n  pipeline-demo [loss] [frames]           end-to-end sender/FEC/NACK/receiver recovery\n  secure-demo                             run an authenticated encrypted UDP demo"
     );
 }

@@ -8,4 +8,6 @@ All notable changes will be recorded here.
 - Added access-unit fragmentation/reassembly, deadline scheduling, XOR FEC, retransmission cache, bitrate controller, and UDP diagnostics.
 - Added a deterministic loss/reordering/expiry simulator (`fluxcast-core::simulation`) and a `fluxcast-cli simulate` command that reports frame delivery and FEC recovery rates.
 - Added canonical cross-language FCDP v0.1 test vectors (`spec/test-vectors.json`) verified across the Rust, Python, and Node.js SDKs by `scripts/verify_vectors.sh`.
+- Added the M1 media pipeline (`fluxcast-core::pipeline`): `MediaSender`/`MediaReceiver` that wire fragmentation, per-frame XOR FEC, audio/keyframe retransmission, deadline dropping, and NACK feedback into one flow, with FEC/NACK/ACK wire codecs and an end-to-end `fluxcast-cli pipeline-demo`.
+- Added `fragment_access_unit_sized` so FEC-protected frames use a symbol size that keeps parity within the datagram budget.
 - Added OSS governance, security, contribution, CI, and issue-reporting foundations.

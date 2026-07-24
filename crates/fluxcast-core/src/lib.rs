@@ -5,7 +5,13 @@
 
 #![forbid(unsafe_code)]
 
+pub mod pipeline;
 pub mod simulation;
+pub use pipeline::{
+    Delivered, FEC_SYMBOL_SIZE, FecBlock, FecPolicy, MediaReceiver, MediaSender,
+    decode_fec_payload, decode_feedback_payload, decode_nack_payload, encode_fec_payload,
+    encode_feedback_payload, encode_nack_payload,
+};
 pub use simulation::{ChannelModel, SimulationReport, simulate_delivery};
 
 use std::collections::{BTreeMap, HashMap};
@@ -504,7 +510,8 @@ pub struct OutboundDatagram {
     pub bytes: Vec<u8>,
 }
 
-/// Splits an access unit into independently validated FCDP MEDIA datagrams.
+/// Splits an access unit into independently validated FCDP MEDIA datagrams,
+/// using the default non-fragmenting payload budget.
 ///
 /// # Errors
 ///
@@ -517,7 +524,38 @@ pub fn fragment_access_unit(
     unit: &AccessUnit,
     now: Instant,
 ) -> Result<Vec<OutboundDatagram>, CoreError> {
-    let fragments = unit.bytes.chunks(MAX_MEDIA_PAYLOAD).collect::<Vec<_>>();
+    fragment_access_unit_sized(
+        session_id,
+        epoch,
+        next_sequence,
+        unit,
+        now,
+        MAX_MEDIA_PAYLOAD,
+    )
+}
+
+/// Splits an access unit into MEDIA datagrams with a caller-chosen payload size.
+///
+/// FEC-protected frames use a symbol size below [`MAX_MEDIA_PAYLOAD`] so the
+/// parity datagram, which is as large as the biggest symbol, still fits the
+/// datagram budget once its own header is added.
+///
+/// # Errors
+///
+/// Returns an error when `max_payload` is zero, when the access unit needs more
+/// than `u16::MAX` fragments, or when FCDP encoding rejects a fragment.
+pub fn fragment_access_unit_sized(
+    session_id: u64,
+    epoch: u16,
+    next_sequence: &mut u32,
+    unit: &AccessUnit,
+    now: Instant,
+    max_payload: usize,
+) -> Result<Vec<OutboundDatagram>, CoreError> {
+    if max_payload == 0 || max_payload > MAX_MEDIA_PAYLOAD {
+        return Err(CoreError::InvalidMedia);
+    }
+    let fragments = unit.bytes.chunks(max_payload).collect::<Vec<_>>();
     let fragments = if fragments.is_empty() {
         vec![&[][..]]
     } else {

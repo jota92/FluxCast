@@ -67,6 +67,7 @@ Run local checks with:
 cargo test --workspace
 cargo run -p fluxcast-cli -- secure-demo
 cargo run -p fluxcast-cli -- simulate 0.02 300 1
+cargo run -p fluxcast-cli -- pipeline-demo 0.15 120
 cargo run -p fluxcast-cli -- stun stun.l.google.com:19302
 bash scripts/verify_vectors.sh
 bash scripts/test_media_roundtrip.sh

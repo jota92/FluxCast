@@ -14,6 +14,15 @@ encoded access unit
 
 `fluxcast-proto` owns the versioned wire header. `fluxcast-core` is codec agnostic: H.264, AV1, and Opus integration belongs at the SDK edge, so the core never decodes or transcodes media.
 
+`fluxcast-core::pipeline` composes these primitives into a `MediaSender` and
+`MediaReceiver`. The sender fragments each access unit (at a reduced symbol size
+when FEC is on so parity fits one datagram), emits one XOR `FEC` datagram per
+frame, caches audio/keyframe datagrams, and answers `NACK` requests that are
+still within deadline. The receiver reassembles, repairs a single lost fragment
+per frame from parity, drops frames past their deadline, and reports the
+sequence numbers worth requesting again. `FEC`, `NACK`, and `ACK` payloads have
+explicit, untrusted-input-safe codecs shared by every SDK.
+
 ## Delivery policy
 
 - Audio and key video are priority 0 and are eligible for retransmission.

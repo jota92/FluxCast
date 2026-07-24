@@ -10,10 +10,24 @@
 - [x] Localhost UDP sender/receiver and deterministic loss/reordering/expiry
       simulator (`fluxcast-core::simulation`, `fluxcast-cli simulate`)
 
+## M1 — single-viewer transport (in progress)
+
+Transport semantics are implemented and unit-tested; the remaining gate is
+measured performance on real hardware and networks.
+
+- [x] Encrypted, authenticated sessions with replay protection
+      (`fluxcast-security`)
+- [x] Deadline-aware sender/receiver pipeline: fragmentation, per-frame XOR FEC,
+      audio/keyframe retransmission cache, deadline dropping, and NACK feedback
+      (`fluxcast-core::pipeline`, `MediaSender`/`MediaReceiver`,
+      `fluxcast-cli pipeline-demo`)
+- [x] FEC/NACK/ACK control payload wire codecs
+- [x] Conservative AIMD bitrate controller with keyframe-request feedback
+- [ ] 1080p60 H.264 + Opus capture/encoder integration in an example app
+- [ ] Measured LAN glass-to-glass ≤150 ms and continuous playback at 1% loss
+
 ## Next milestones
 
-- M1: encrypted, authenticated sessions; replay protection; sender/receiver;
-  deadline handling; XOR FEC; NACK; and congestion control.
 - M2: ICE/STUN/TURN connectivity, no-transcode authenticated fan-out Relay,
   authorization, metrics, and cross-network tests.
 - M3: stable C ABI, Python/Node/Swift/Kotlin/Go SDKs, browser support, and
