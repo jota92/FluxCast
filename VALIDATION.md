@@ -34,6 +34,7 @@ Run local checks with:
 cargo test --workspace
 cargo run -p fluxcast-cli -- secure-demo
 cargo run -p fluxcast-cli -- stun stun.l.google.com:19302
+bash scripts/test_media_roundtrip.sh
 ```
 
 External validation requires a separately authorized VM, a narrowly scoped UDP
