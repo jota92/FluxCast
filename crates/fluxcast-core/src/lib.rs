@@ -14,6 +14,137 @@ use fluxcast_proto::{
     DEFAULT_MAX_DATAGRAM_LEN, DecodeError, EncodeError, HEADER_LEN, Header, PacketType,
 };
 use fluxcast_security::{SecurityError, Session};
+use rand_core::{OsRng, RngCore};
+
+const STUN_MAGIC_COOKIE: u32 = 0x2112_A442;
+const STUN_BINDING_REQUEST: u16 = 0x0001;
+const STUN_BINDING_SUCCESS: u16 = 0x0101;
+const STUN_XOR_MAPPED_ADDRESS: u16 = 0x0020;
+
+/// A server-reflexive UDP candidate discovered through RFC 5389 STUN.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ServerReflexiveCandidate {
+    pub address: SocketAddr,
+    pub stun_server: SocketAddr,
+}
+
+/// Queries a STUN server for the public UDP mapping of a locally-bound socket.
+///
+/// This is the server-reflexive-candidate half of ICE. Candidate pairing,
+/// authenticated connectivity checks, TURN allocation, and nomination remain
+/// connection-layer responsibilities.
+///
+/// # Errors
+///
+/// Returns an I/O error for a timeout/network failure and `InvalidData` for a
+/// response that is not a valid response to this transaction.
+pub fn discover_server_reflexive_candidate(
+    socket: &UdpSocket,
+    stun_server: SocketAddr,
+    timeout: Duration,
+) -> io::Result<ServerReflexiveCandidate> {
+    let mut transaction_id = [0_u8; 12];
+    OsRng.fill_bytes(&mut transaction_id);
+    let request = stun_binding_request(transaction_id);
+    socket.send_to(&request, stun_server)?;
+    socket.set_read_timeout(Some(timeout))?;
+    let mut buffer = [0_u8; 576];
+    let received = socket.recv_from(&mut buffer);
+    socket.set_read_timeout(None)?;
+    let (length, peer) = received?;
+    if peer != stun_server {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            "unexpected STUN peer",
+        ));
+    }
+    let address = parse_stun_binding_success(&buffer[..length], transaction_id)?;
+    Ok(ServerReflexiveCandidate {
+        address,
+        stun_server,
+    })
+}
+
+fn stun_binding_request(transaction_id: [u8; 12]) -> [u8; 20] {
+    let mut packet = [0_u8; 20];
+    packet[..2].copy_from_slice(&STUN_BINDING_REQUEST.to_be_bytes());
+    packet[4..8].copy_from_slice(&STUN_MAGIC_COOKIE.to_be_bytes());
+    packet[8..].copy_from_slice(&transaction_id);
+    packet
+}
+
+fn parse_stun_binding_success(packet: &[u8], transaction_id: [u8; 12]) -> io::Result<SocketAddr> {
+    if packet.len() < 20
+        || u16::from_be_bytes([packet[0], packet[1]]) != STUN_BINDING_SUCCESS
+        || u16::from_be_bytes([packet[2], packet[3]]) as usize + 20 != packet.len()
+        || packet[4..8] != STUN_MAGIC_COOKIE.to_be_bytes()
+        || packet[8..20] != transaction_id
+    {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            "invalid STUN response",
+        ));
+    }
+    let mut cursor = 20;
+    while cursor + 4 <= packet.len() {
+        let attribute_type = u16::from_be_bytes([packet[cursor], packet[cursor + 1]]);
+        let length = u16::from_be_bytes([packet[cursor + 2], packet[cursor + 3]]) as usize;
+        let value_start = cursor + 4;
+        let value_end = value_start
+            .checked_add(length)
+            .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "STUN attribute overflow"))?;
+        if value_end > packet.len() {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                "truncated STUN attribute",
+            ));
+        }
+        if attribute_type == STUN_XOR_MAPPED_ADDRESS {
+            return parse_xor_mapped_address(&packet[value_start..value_end], transaction_id);
+        }
+        cursor = value_end + ((4 - (length % 4)) % 4);
+    }
+    Err(io::Error::new(
+        io::ErrorKind::InvalidData,
+        "STUN response has no XOR-MAPPED-ADDRESS",
+    ))
+}
+
+fn parse_xor_mapped_address(value: &[u8], transaction_id: [u8; 12]) -> io::Result<SocketAddr> {
+    if value.len() < 4 || value[0] != 0 {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            "invalid XOR-MAPPED-ADDRESS",
+        ));
+    }
+    let port = u16::from_be_bytes([value[2], value[3]]) ^ (STUN_MAGIC_COOKIE >> 16) as u16;
+    match value[1] {
+        0x01 if value.len() == 8 => {
+            let cookie = STUN_MAGIC_COOKIE.to_be_bytes();
+            let ip = std::net::Ipv4Addr::new(
+                value[4] ^ cookie[0],
+                value[5] ^ cookie[1],
+                value[6] ^ cookie[2],
+                value[7] ^ cookie[3],
+            );
+            Ok(SocketAddr::from((ip, port)))
+        }
+        0x02 if value.len() == 20 => {
+            let mut mask = [0_u8; 16];
+            mask[..4].copy_from_slice(&STUN_MAGIC_COOKIE.to_be_bytes());
+            mask[4..].copy_from_slice(&transaction_id);
+            let mut bytes = [0_u8; 16];
+            for (output, (input, xor)) in bytes.iter_mut().zip(value[4..].iter().zip(mask.iter())) {
+                *output = input ^ xor;
+            }
+            Ok(SocketAddr::from((std::net::Ipv6Addr::from(bytes), port)))
+        }
+        _ => Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            "unsupported XOR-MAPPED-ADDRESS family",
+        )),
+    }
+}
 
 /// Largest payload that fits in the default non-fragmenting UDP budget.
 pub const MAX_MEDIA_PAYLOAD: usize = DEFAULT_MAX_DATAGRAM_LEN - HEADER_LEN;
@@ -578,5 +709,28 @@ mod tests {
         assert_eq!(c.current_bps(), 800);
         c.observe(0.0, 0.0, Duration::from_secs(3));
         assert_eq!(c.current_bps(), 840);
+    }
+    #[test]
+    fn parses_rfc5389_xor_mapped_ipv4_address() {
+        let transaction_id = [7_u8; 12];
+        let mut response = vec![0_u8; 32];
+        response[..2].copy_from_slice(&STUN_BINDING_SUCCESS.to_be_bytes());
+        response[2..4].copy_from_slice(&12_u16.to_be_bytes());
+        response[4..8].copy_from_slice(&STUN_MAGIC_COOKIE.to_be_bytes());
+        response[8..20].copy_from_slice(&transaction_id);
+        response[20..22].copy_from_slice(&STUN_XOR_MAPPED_ADDRESS.to_be_bytes());
+        response[22..24].copy_from_slice(&8_u16.to_be_bytes());
+        response[25] = 0x01;
+        let port = 50_000_u16;
+        response[26..28].copy_from_slice(&(port ^ (STUN_MAGIC_COOKIE >> 16) as u16).to_be_bytes());
+        let cookie = STUN_MAGIC_COOKIE.to_be_bytes();
+        let address = [203_u8, 0, 113, 7];
+        for (output, (input, xor)) in response[28..].iter_mut().zip(address.iter().zip(cookie)) {
+            *output = input ^ xor;
+        }
+        assert_eq!(
+            parse_stun_binding_success(&response, transaction_id).unwrap(),
+            "203.0.113.7:50000".parse().unwrap()
+        );
     }
 }

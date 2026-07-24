@@ -1,11 +1,11 @@
 use std::env;
-use std::net::SocketAddr;
+use std::net::{SocketAddr, ToSocketAddrs, UdpSocket};
 use std::thread;
 use std::time::{Duration, Instant};
 
 use fluxcast_core::{
     AccessUnit, MAX_MEDIA_PAYLOAD, MediaKind, Reassembler, SecureUdpEndpoint, UdpEndpoint,
-    fragment_access_unit,
+    discover_server_reflexive_candidate, fragment_access_unit,
 };
 use fluxcast_proto::{Header, PacketType};
 use fluxcast_security::Identity;
@@ -26,12 +26,34 @@ fn run(args: &[String]) -> Result<(), Box<dyn std::error::Error>> {
         Some("relay") => relay(&args[1..]),
         Some("demo") => demo(),
         Some("secure-demo") => secure_demo(),
+        Some("stun") => stun(&args[1..]),
         Some("help") | None => {
             print_help();
             Ok(())
         }
         Some(command) => Err(format!("unknown command `{command}`").into()),
     }
+}
+
+fn stun(args: &[String]) -> Result<(), Box<dyn std::error::Error>> {
+    let [server] = args else {
+        return Err("usage: fluxcast-cli stun <host:port>".into());
+    };
+    let server = server
+        .to_socket_addrs()?
+        .next()
+        .ok_or("STUN server did not resolve to an address")?;
+    let socket = UdpSocket::bind(if server.is_ipv4() {
+        "0.0.0.0:0"
+    } else {
+        "[::]:0"
+    })?;
+    let candidate = discover_server_reflexive_candidate(&socket, server, Duration::from_secs(3))?;
+    println!(
+        "server-reflexive candidate: {} via {}",
+        candidate.address, candidate.stun_server
+    );
+    Ok(())
 }
 
 fn secure_demo() -> Result<(), Box<dyn std::error::Error>> {
@@ -170,6 +192,6 @@ fn demo() -> Result<(), Box<dyn std::error::Error>> {
 
 fn print_help() {
     println!(
-        "FluxCast pre-alpha diagnostic CLI\n\nCommands:\n  send <host:port> <text>                 send a deadline-aware test access unit\n  receive <host:port>                     receive test access units for 30 seconds\n  relay <bind> <subscriber-host:port>     validate and forward FCDP datagrams\n  demo                                    run an in-process UDP fragmentation/reassembly demo\n  secure-demo                             run an authenticated encrypted UDP demo"
+        "FluxCast pre-alpha diagnostic CLI\n\nCommands:\n  send <host:port> <text>                 send a deadline-aware test access unit\n  receive <host:port>                     receive test access units for 30 seconds\n  relay <bind> <subscriber-host:port>     validate and forward FCDP datagrams\n  stun <host:port>                        discover a server-reflexive UDP candidate\n  demo                                    run an in-process UDP fragmentation/reassembly demo\n  secure-demo                             run an authenticated encrypted UDP demo"
     );
 }
