@@ -26,6 +26,18 @@ The VM was deallocated immediately after the check. The check proves a
 specific public-Internet forwarding path, not NAT interoperability, sustained
 performance, or security certification.
 
+## TURN relay check
+
+On 2026-07-24, the same Azure VM ran coturn with long-term authentication,
+UDP/TCP listener port 3478, and relay ports limited to UDP 49152–49200. The
+`turnutils_uclient` authenticated relay check completed with four messages sent
+and received, zero loss, and a 0.25 ms average in-VM round-trip time. The VM
+was deallocated immediately afterwards. Credentials are deployment secrets and
+are deliberately not stored in this repository.
+
+This proves coturn allocation/relay functionality, not FluxCast's unfinished
+ICE nomination or automatic TURN fallback integration.
+
 ## Re-running
 
 Run local checks with:
