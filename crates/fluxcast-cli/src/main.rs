@@ -6,8 +6,8 @@ use std::time::{Duration, Instant};
 
 use fluxcast_core::{
     AccessUnit, ChannelModel, Delivered, FecPolicy, MAX_MEDIA_PAYLOAD, MediaKind, MediaReceiver,
-    MediaSender, Reassembler, RelaySubscriptions, SecureUdpEndpoint, UdpEndpoint,
-    discover_server_reflexive_candidate, fragment_access_unit, simulate_delivery,
+    MediaSender, Reassembler, RelaySubscriptions, SecureUdpEndpoint, TurnClient, TurnCredentials,
+    UdpEndpoint, discover_server_reflexive_candidate, fragment_access_unit, simulate_delivery,
     split_h264_annex_b, split_ogg_pages,
 };
 use fluxcast_proto::{Header, PacketType};
@@ -32,6 +32,8 @@ fn run(args: &[String]) -> Result<(), Box<dyn std::error::Error>> {
         Some("pipeline-demo") => pipeline_demo(&args[1..]),
         Some("secure-demo") => secure_demo(),
         Some("stun") => stun(&args[1..]),
+        Some("turn") => turn(&args[1..]),
+        Some("turn-recv") => turn_recv(&args[1..]),
         Some("send-h264") => send_h264(&args[1..]),
         Some("send-opus") => send_opus(&args[1..]),
         Some("receive-file") => receive_file(&args[1..]),
@@ -61,6 +63,116 @@ fn stun(args: &[String]) -> Result<(), Box<dyn std::error::Error>> {
         "server-reflexive candidate: {} via {}",
         candidate.address, candidate.stun_server
     );
+    Ok(())
+}
+
+fn turn(args: &[String]) -> Result<(), Box<dyn std::error::Error>> {
+    let [server, username, password] = args else {
+        return Err("usage: fluxcast-cli turn <host:port> <username> <password>".into());
+    };
+    let server = server
+        .to_socket_addrs()?
+        .next()
+        .ok_or("TURN server did not resolve")?;
+    let socket = UdpSocket::bind(if server.is_ipv4() {
+        "0.0.0.0:0"
+    } else {
+        "[::]:0"
+    })?;
+    let mut client = TurnClient::new(
+        socket,
+        server,
+        TurnCredentials {
+            username: username.clone(),
+            password: password.clone(),
+        },
+        Duration::from_secs(5),
+    )?;
+
+    let allocation = client.allocate()?;
+    println!("TURN allocation succeeded:");
+    println!("  relayed address: {}", allocation.relayed);
+    println!("  mapped address:  {}", allocation.mapped);
+    println!("  lifetime:        {}s", allocation.lifetime_secs);
+
+    // Prove the relay forwards data: bind our own mapped address as the peer,
+    // send a ChannelData through the server, and read it back off the relay.
+    let channel = 0x4000;
+    client.create_permission(allocation.mapped)?;
+    client.channel_bind(allocation.mapped, channel)?;
+    let probe = b"FC-turn-relay-selftest";
+    client.send_channel_data(channel, probe)?;
+
+    client
+        .socket()
+        .set_read_timeout(Some(Duration::from_secs(3)))?;
+    let mut buffer = vec![0u8; 1500];
+    match client.socket().recv_from(&mut buffer) {
+        Ok((len, from)) if &buffer[..len] == probe && from == allocation.relayed => {
+            println!("  relay round-trip: verified via {}", allocation.relayed);
+        }
+        Ok((len, from)) => {
+            println!(
+                "  relay round-trip: received {len} bytes from {from} (allocation confirmed; \
+                 hairpin payload differed)"
+            );
+        }
+        Err(error) => {
+            println!(
+                "  relay round-trip: allocation confirmed; no hairpin echo ({error}). \
+                 This server may block hairpinning."
+            );
+        }
+    }
+    // Best-effort release.
+    let _ = client.refresh(0);
+    Ok(())
+}
+
+fn turn_recv(args: &[String]) -> Result<(), Box<dyn std::error::Error>> {
+    let [server, username, password, permit_ip] = args else {
+        return Err(
+            "usage: fluxcast-cli turn-recv <host:port> <user> <pass> <permit-peer-ip>".into(),
+        );
+    };
+    let server = server
+        .to_socket_addrs()?
+        .next()
+        .ok_or("TURN server did not resolve")?;
+    let socket = UdpSocket::bind(if server.is_ipv4() {
+        "0.0.0.0:0"
+    } else {
+        "[::]:0"
+    })?;
+    let mut client = TurnClient::new(
+        socket,
+        server,
+        TurnCredentials {
+            username: username.clone(),
+            password: password.clone(),
+        },
+        Duration::from_secs(5),
+    )?;
+    let allocation = client.allocate()?;
+    // Permit the peer's IP (TURN permissions are per-IP; the port is ignored).
+    let permit: SocketAddr = format!("{permit_ip}:1").parse()?;
+    client.create_permission(permit)?;
+    // Emit the relay coordinates on one line the caller can parse, then wait.
+    println!("RELAY {} PERMIT {permit_ip}", allocation.relayed);
+    std::io::stdout().flush()?;
+
+    client
+        .socket()
+        .set_read_timeout(Some(Duration::from_secs(20)))?;
+    let mut buffer = vec![0u8; 1500];
+    let (peer, data) = client.recv_relayed(&mut buffer)?;
+    println!(
+        "RELAYED {} bytes from peer {:?}: {}",
+        data.len(),
+        peer,
+        String::from_utf8_lossy(&data)
+    );
+    let _ = client.refresh(0);
     Ok(())
 }
 
@@ -459,6 +571,6 @@ fn demo() -> Result<(), Box<dyn std::error::Error>> {
 
 fn print_help() {
     println!(
-        "FluxCast pre-alpha diagnostic CLI\n\nCommands:\n  send <host:port> <text>                 send a deadline-aware test access unit\n  send-h264 <host:port> <annex-b.h264>    send H.264 Annex-B NAL units\n  send-opus <host:port> <input.opus>      send Ogg Opus pages\n  receive <host:port>                     receive test access units for 30 seconds\n  receive-file <bind> <output>            recover media stream to a file\n  relay <bind> <session-id> <subscriber>... fan out one session to viewers\n  stun <host:port>                        discover a server-reflexive UDP candidate\n  demo                                    run an in-process UDP fragmentation/reassembly demo\n  simulate [loss] [frames] [seed] [in-order] deterministic loss/reorder/deadline report\n  pipeline-demo [loss] [frames]           end-to-end sender/FEC/NACK/receiver recovery\n  secure-demo                             run an authenticated encrypted UDP demo"
+        "FluxCast pre-alpha diagnostic CLI\n\nCommands:\n  send <host:port> <text>                 send a deadline-aware test access unit\n  send-h264 <host:port> <annex-b.h264>    send H.264 Annex-B NAL units\n  send-opus <host:port> <input.opus>      send Ogg Opus pages\n  receive <host:port>                     receive test access units for 30 seconds\n  receive-file <bind> <output>            recover media stream to a file\n  relay <bind> <session-id> <subscriber>... fan out one session to viewers\n  stun <host:port>                        discover a server-reflexive UDP candidate\n  turn <host:port> <user> <pass>          allocate a TURN relay and verify forwarding\n  demo                                    run an in-process UDP fragmentation/reassembly demo\n  simulate [loss] [frames] [seed] [in-order] deterministic loss/reorder/deadline report\n  pipeline-demo [loss] [frames]           end-to-end sender/FEC/NACK/receiver recovery\n  secure-demo                             run an authenticated encrypted UDP demo"
     );
 }

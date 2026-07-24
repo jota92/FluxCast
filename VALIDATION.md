@@ -47,17 +47,29 @@ The VM was deallocated immediately after the check. The check proves a
 specific public-Internet forwarding path, not NAT interoperability, sustained
 performance, or security certification.
 
-## TURN relay check
+## TURN relay check (FluxCast client)
 
-On 2026-07-24, the same Azure VM ran coturn with long-term authentication,
-UDP/TCP listener port 3478, and relay ports limited to UDP 49152–49200. The
-`turnutils_uclient` authenticated relay check completed with four messages sent
-and received, zero loss, and a 0.25 ms average in-VM round-trip time. The VM
-was deallocated immediately afterwards. Credentials are deployment secrets and
-are deliberately not stored in this repository.
+On 2026-07-24, the `fluxcast-lab` Azure VM (East Asia) ran coturn with
+long-term authentication (`lt-cred-mech`, realm `fluxcast`), UDP listener 3478,
+and relay ports UDP 49152–49200. FluxCast's own `TurnClient`
+(`fluxcast-core::turn`) was driven from a home network behind NAT:
 
-This proves coturn allocation/relay functionality, not FluxCast's unfinished
-ICE nomination or automatic TURN fallback integration.
+- `fluxcast-cli turn` completed the 401 challenge and an authenticated
+  Allocate, `CreatePermission`, and `ChannelBind`, each carrying a valid
+  `MESSAGE-INTEGRITY` (MD5 long-term key + HMAC-SHA1). It received relayed
+  address `20.205.121.106:49189` and correctly reported its server-reflexive
+  mapping `219.28.140.145:53871`.
+- A full data-plane relay was then verified: `fluxcast-cli turn-recv`
+  allocated relay `20.205.121.106:49160` and permitted the peer IP; a peer
+  process on the VM sent to the relay; coturn forwarded the datagram across the
+  public Internet as a STUN `Data` indication, which the client decoded to the
+  original 19-byte payload from peer `20.205.121.106:43884`.
+
+This exercises FluxCast's TURN allocation, authentication, permissions, channel
+binding, and `Data`-indication handling against production coturn. Credentials
+are ephemeral deployment secrets and are deliberately not stored in this
+repository. ICE nomination and automatic TURN fallback wiring remain in
+progress. The classic `turnutils_uclient` check also passed previously.
 
 ## Re-running
 

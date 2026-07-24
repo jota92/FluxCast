@@ -7,12 +7,14 @@
 
 pub mod pipeline;
 pub mod simulation;
+pub mod turn;
 pub use pipeline::{
     Delivered, FEC_SYMBOL_SIZE, FecBlock, FecPolicy, MediaReceiver, MediaSender,
     decode_fec_payload, decode_feedback_payload, decode_nack_payload, encode_fec_payload,
     encode_feedback_payload, encode_nack_payload,
 };
 pub use simulation::{ChannelModel, SimulationReport, simulate_delivery};
+pub use turn::{Allocation, TurnClient, TurnCredentials};
 
 use std::collections::{BTreeMap, HashMap};
 use std::io;
