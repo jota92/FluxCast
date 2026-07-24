@@ -86,7 +86,8 @@ impl RelaySubscriptions {
         let before = subscribers.len();
         subscribers.retain(|_, expires_at| *expires_at > now);
         self.expired_subscriptions += (before - subscribers.len()) as u64;
-        let recipients = subscribers.keys().copied().collect();
+        let mut recipients: Vec<_> = subscribers.keys().copied().collect();
+        recipients.sort_unstable();
         if subscribers.is_empty() {
             self.subscriptions.remove(&session_id);
         }
@@ -239,6 +240,106 @@ pub enum MediaKind {
     VideoKey,
     VideoDelta,
     Metadata,
+}
+
+/// One complete H.264 NAL unit in Annex-B form, including its start code.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct H264NalUnit<'a> {
+    pub bytes: &'a [u8],
+    pub nal_type: u8,
+    pub kind: MediaKind,
+}
+
+/// Splits an Annex-B H.264 byte stream at NAL-unit boundaries.
+///
+/// This accepts both three- and four-byte start codes. Access-unit grouping
+/// (AUD/slice boundary detection) is deliberately left to the capture layer;
+/// every returned NAL is independently suitable for deadline-aware transport.
+///
+/// # Errors
+///
+/// Returns an error if the stream contains no start code or an empty NAL.
+pub fn split_h264_annex_b(input: &[u8]) -> Result<Vec<H264NalUnit<'_>>, CoreError> {
+    let starts = annex_b_start_codes(input);
+    if starts.is_empty() {
+        return Err(CoreError::InvalidMedia);
+    }
+    let mut units = Vec::with_capacity(starts.len());
+    for (index, (start, prefix)) in starts.iter().copied().enumerate() {
+        let end = starts
+            .get(index + 1)
+            .map_or(input.len(), |(offset, _)| *offset);
+        let payload_start = start + prefix;
+        if payload_start >= end {
+            return Err(CoreError::InvalidMedia);
+        }
+        let nal_type = input[payload_start] & 0x1f;
+        let kind = if nal_type == 5 {
+            MediaKind::VideoKey
+        } else {
+            MediaKind::VideoDelta
+        };
+        units.push(H264NalUnit {
+            bytes: &input[start..end],
+            nal_type,
+            kind,
+        });
+    }
+    Ok(units)
+}
+
+fn annex_b_start_codes(input: &[u8]) -> Vec<(usize, usize)> {
+    let mut starts = Vec::new();
+    let mut index = 0;
+    while index + 3 <= input.len() {
+        let prefix = if input[index..].starts_with(&[0, 0, 1]) {
+            3
+        } else if index + 4 <= input.len() && input[index..].starts_with(&[0, 0, 0, 1]) {
+            4
+        } else {
+            index += 1;
+            continue;
+        };
+        starts.push((index, prefix));
+        index += prefix;
+    }
+    starts
+}
+
+/// Validates and splits an Ogg Opus stream into complete pages for transport.
+/// Keeping page boundaries lets a receiver concatenate the recovered bytes into
+/// a standards-compliant `.opus` file without needing codec keys at the relay.
+///
+/// # Errors
+///
+/// Returns an error for malformed capture patterns, lacing values, or partial pages.
+pub fn split_ogg_pages(input: &[u8]) -> Result<Vec<&[u8]>, CoreError> {
+    let mut pages = Vec::new();
+    let mut cursor = 0;
+    while cursor < input.len() {
+        if input.get(cursor..cursor + 4) != Some(b"OggS") || input.get(cursor + 4) != Some(&0) {
+            return Err(CoreError::InvalidMedia);
+        }
+        let segments = *input.get(cursor + 26).ok_or(CoreError::InvalidMedia)? as usize;
+        let lacing_start = cursor + 27;
+        let body_start = lacing_start + segments;
+        let lacing = input
+            .get(lacing_start..body_start)
+            .ok_or(CoreError::InvalidMedia)?;
+        let body_len: usize = lacing.iter().map(|value| usize::from(*value)).sum();
+        let end = body_start
+            .checked_add(body_len)
+            .ok_or(CoreError::InvalidMedia)?;
+        if end > input.len() {
+            return Err(CoreError::InvalidMedia);
+        }
+        pages.push(&input[cursor..end]);
+        cursor = end;
+    }
+    if pages.is_empty() {
+        return Err(CoreError::InvalidMedia);
+    }
+    Ok(pages)
 }
 
 impl MediaKind {
@@ -717,6 +818,7 @@ pub enum CoreError {
     DeadlineOverflow,
     NotMedia,
     InconsistentFrame,
+    InvalidMedia,
 }
 impl From<EncodeError> for CoreError {
     fn from(value: EncodeError) -> Self {
@@ -836,5 +938,23 @@ mod tests {
         let metrics = relay.metrics();
         assert_eq!(metrics.active_sessions, 0);
         assert_eq!(metrics.expired_subscriptions, 2);
+    }
+    #[test]
+    fn splits_annex_b_h264_and_preserves_keyframe_priority() {
+        let source = [0, 0, 0, 1, 0x67, 1, 0, 0, 1, 0x65, 2, 3];
+        let units = split_h264_annex_b(&source).unwrap();
+        assert_eq!(units.len(), 2);
+        assert_eq!(units[0].nal_type, 7);
+        assert_eq!(units[1].kind, MediaKind::VideoKey);
+        assert_eq!(units[1].bytes, &[0, 0, 1, 0x65, 2, 3]);
+    }
+    #[test]
+    fn splits_complete_ogg_pages() {
+        let mut page = vec![0_u8; 28];
+        page[..4].copy_from_slice(b"OggS");
+        page[26] = 1;
+        page[27] = 3;
+        page.extend_from_slice(b"abc");
+        assert_eq!(split_ogg_pages(&page).unwrap(), vec![page.as_slice()]);
     }
 }
