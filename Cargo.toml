@@ -1,5 +1,5 @@
 [workspace]
-members = ["crates/fluxcast-proto", "crates/fluxcast-core", "crates/fluxcast-cli"]
+members = ["crates/fluxcast-proto", "crates/fluxcast-core", "crates/fluxcast-security", "crates/fluxcast-cli"]
 resolver = "2"
 
 [workspace.package]

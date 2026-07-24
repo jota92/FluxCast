@@ -25,3 +25,12 @@ encoded access unit
 ## Security boundary
 
 The current code validates framing only. CRC-16 detects accidental corruption; it is not authentication. A networked release requires a versioned handshake, replay protection, key rotation, rate limiting, and audited AEAD encryption. Those requirements are intentionally not simulated or claimed as complete here.
+
+## Release baseline
+
+FluxCast will not describe itself as a WebRTC-class transport until it provides
+the following as maintained, tested product capabilities: ICE/STUN/TURN NAT
+traversal; authenticated encrypted sessions (the role served by DTLS-SRTP in
+WebRTC); congestion control and adaptive bitrate; browser interoperability;
+stable multi-platform SDKs; diagnostics; and reproducible interoperation tests.
+These are release gates, not optional enhancements.

@@ -21,12 +21,34 @@ fn run(args: &[String]) -> Result<(), Box<dyn std::error::Error>> {
     match args.first().map(String::as_str) {
         Some("send") => send(&args[1..]),
         Some("receive") => receive(&args[1..]),
+        Some("relay") => relay(&args[1..]),
         Some("demo") => demo(),
         Some("help") | None => {
             print_help();
             Ok(())
         }
         Some(command) => Err(format!("unknown command `{command}`").into()),
+    }
+}
+
+fn relay(args: &[String]) -> Result<(), Box<dyn std::error::Error>> {
+    let [bind, subscriber] = args else {
+        return Err("usage: fluxcast-cli relay <bind-host:port> <subscriber-host:port>".into());
+    };
+    let endpoint = UdpEndpoint::bind(bind.parse()?)?;
+    let subscriber: SocketAddr = subscriber.parse()?;
+    println!(
+        "relay listening on {}; forwarding to {subscriber}",
+        endpoint.local_addr()?
+    );
+    let mut buffer = vec![0; 1200];
+    loop {
+        match endpoint.receive(&mut buffer)? {
+            Some((_, length, _)) => {
+                endpoint.send(subscriber, &buffer[..length])?;
+            }
+            None => thread::sleep(Duration::from_millis(1)),
+        }
     }
 }
 
@@ -116,6 +138,6 @@ fn demo() -> Result<(), Box<dyn std::error::Error>> {
 
 fn print_help() {
     println!(
-        "FluxCast pre-alpha diagnostic CLI\n\nCommands:\n  send <host:port> <text>    send a deadline-aware test access unit\n  receive <host:port>        receive test access units for 30 seconds\n  demo                       run an in-process UDP fragmentation/reassembly demo"
+        "FluxCast pre-alpha diagnostic CLI\n\nCommands:\n  send <host:port> <text>                 send a deadline-aware test access unit\n  receive <host:port>                     receive test access units for 30 seconds\n  relay <bind> <subscriber-host:port>     validate and forward FCDP datagrams\n  demo                                    run an in-process UDP fragmentation/reassembly demo"
     );
 }

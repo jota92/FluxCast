@@ -8,7 +8,7 @@ FluxCast prioritizes the media that can still improve what a viewer sees or hear
 
 **Pre-alpha / M1 foundation.** The repository provides a codec-agnostic access-unit path that fragments data into 1200-byte-budget FCDP/UDP datagrams, validates headers, prioritizes audio/keyframes, drops expired queued packets, reassembles out-of-order fragments, performs one-loss XOR recovery, retains eligible audio/keyframe packets for retransmission, and exposes a conservative AIMD bitrate controller.
 
-It does **not** yet provide a secure session handshake, authenticated encryption, NAT traversal, a Relay, an H.264/Opus capture pipeline, browser support, or stable language bindings. It must not be used for confidential media or production traffic.
+It does **not** yet provide a versioned network handshake, NAT traversal, an H.264/Opus capture pipeline, browser support, or stable language bindings. It must not be used for confidential media or production traffic.
 
 ## Quick start
 
@@ -29,6 +29,7 @@ cargo run -p fluxcast-cli -- send 127.0.0.1:9000 "hello FluxCast"
 
 - `fluxcast-proto`: versioned FCDP packet framing and validation.
 - `fluxcast-core`: access-unit fragmentation, expiry scheduling, FEC, reassembly, retransmission cache, bitrate control, and a blocking UDP endpoint.
+- `fluxcast-security`: X25519 key agreement, ChaCha20-Poly1305 AEAD, and a replay window. Peer identities must be pinned out of band.
 - `fluxcast-cli`: local diagnostics and an end-to-end UDP demonstration.
 
 The intended product direction is native Publisher/Relay/Subscriber traffic over FCDP/UDP, H.264 access units and Opus packets as the first media targets, plus a separate browser gateway. A future Relay will never decode or transcode media.
