@@ -1,6 +1,7 @@
 #![forbid(unsafe_code)]
 
 use anyhow::{Context, Result};
+use axum::{Router, http::header, response::Response, routing::get};
 use clap::Parser;
 use fcst_protocol::{AtomType, Header, Surface};
 use renderer::FrameRenderer;
@@ -22,6 +23,9 @@ struct Args {
     cert: String,
     #[arg(long)]
     key: String,
+    /// Local debug preview, consumed by the desktop demo page only.
+    #[arg(long, default_value_t = 3031)]
+    preview_port: u16,
 }
 
 #[derive(Default)]
@@ -35,6 +39,7 @@ struct EdgeMetrics {
 struct Shared {
     state: Mutex<VisualState>,
     metrics: Mutex<EdgeMetrics>,
+    preview_rgba: Mutex<Vec<u8>>,
 }
 
 #[tokio::main]
@@ -52,8 +57,10 @@ async fn main() -> Result<()> {
     let shared = Arc::new(Shared {
         state: Mutex::new(VisualState::new()),
         metrics: Mutex::new(EdgeMetrics::default()),
+        preview_rgba: Mutex::new(vec![0; 960 * 540 * 4]),
     });
     tokio::spawn(render_clock(Arc::clone(&shared)));
+    tokio::spawn(preview_server(args.preview_port, Arc::clone(&shared)));
     eprintln!(
         "flexcast.edge.started port={} path=/fc",
         endpoint.local_addr()?.port()
@@ -76,10 +83,42 @@ async fn render_clock(shared: Arc<Shared>) {
         interval.tick().await;
         let now = Instant::now();
         let state = shared.state.lock().await;
-        let _ = renderer.render(&state, now);
+        let frame = renderer.render(&state, now);
+        let mut preview = shared.preview_rgba.lock().await;
+        for output_y in 0..540 {
+            for output_x in 0..960 {
+                let source = ((output_y * 2 * 1920) + output_x * 2) * 4;
+                let destination = (output_y * 960 + output_x) * 4;
+                preview[destination..destination + 4].copy_from_slice(&frame[source..source + 4]);
+            }
+        }
+        drop(preview);
         drop(state);
         shared.metrics.lock().await.rendered_frames = renderer.frames();
     }
+}
+
+async fn preview_server(port: u16, shared: Arc<Shared>) {
+    let app = Router::new()
+        .route("/preview.rgba", get(preview))
+        .with_state(shared);
+    let address = format!("127.0.0.1:{port}");
+    let Ok(listener) = tokio::net::TcpListener::bind(&address).await else {
+        eprintln!("flexcast.edge.preview_bind_failed address={address}");
+        return;
+    };
+    eprintln!("flexcast.edge.preview_started address={address}");
+    let _ = axum::serve(listener, app).await;
+}
+
+async fn preview(axum::extract::State(shared): axum::extract::State<Arc<Shared>>) -> Response {
+    let bytes = shared.preview_rgba.lock().await.clone();
+    Response::builder()
+        .header(header::CONTENT_TYPE, "application/octet-stream")
+        .header(header::ACCESS_CONTROL_ALLOW_ORIGIN, "*")
+        .header("Cache-Control", "no-store")
+        .body(bytes.into())
+        .expect("static response")
 }
 
 async fn handle(incoming: IncomingSession, shared: Arc<Shared>) -> Result<()> {

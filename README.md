@@ -41,10 +41,20 @@ Open the sender page through HTTPS, create a session, and enter the Edge URL.
 For exact configuration, see [local development](docs/development.md) and the
 [protocol](docs/protocol/fcst-v1.md).
 
+## QR camera demo
+
+For a complete PC-to-phone flow, the included Studio demo creates a QR invitation
+on the PC. Scanning it opens the browser sender on the phone; its rendered
+Visual State appears back on the PC. The QR uses a LAN or public HTTPS origin,
+not `localhost`, because a phone's `localhost` is the phone itself. Follow the
+[QR camera demo guide](docs/demo.md).
+
 ## Repository map
 
 - `apps/sender-web` — install-free smartphone sender and strict FHD30 preflight
+- `apps/demo-studio` — PC QR invitation and Edge Visual State preview
 - `services/edge-gateway` — Rust HTTP/3/WebTransport Edge
+- `services/demo-server` — same-origin HTTPS host for the QR demo
 - `services/session-api` — short-lived invite and publisher-token API
 - `crates/` — FCST parser, state store, renderer, scheduler foundations
 - `shaders/` — WebGPU analysis/reconstruction kernels

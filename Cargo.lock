@@ -376,6 +376,7 @@ name = "edge-gateway"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "axum",
  "clap",
  "fcst-protocol",
  "renderer",

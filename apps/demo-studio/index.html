@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>FlexCast — Studio demo</title>
+    <style>
+      :root { color-scheme: dark; font-family: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #081018; color: #eaf2ff; }
+      body { margin: 0; min-height: 100vh; display: grid; place-items: center; } main { width: min(1120px, calc(100vw - 32px)); display: grid; grid-template-columns: 380px 1fr; gap: 28px; } section { background: #101c2a; border: 1px solid #24374d; border-radius: 18px; padding: 28px; } h1 { margin: 0 0 10px; letter-spacing: -.04em; } p { color: #afbdd0; line-height: 1.55; } button { background: #4dd7a8; color: #062016; border: 0; border-radius: 9px; font-weight: 750; padding: 13px 18px; font-size: 16px; cursor: pointer; } #qr { display: block; width: 300px; min-height: 300px; margin: 22px auto 0; background: white; border-radius: 12px; } #join { overflow-wrap: anywhere; font-size: 12px; } canvas { width: 100%; aspect-ratio: 16 / 9; background: #05080c; border-radius: 12px; image-rendering: auto; } .status { color: #4dd7a8; font-weight: 650; } @media (max-width: 800px) { main { grid-template-columns: 1fr; } }
+    </style>
+  </head>
+  <body>
+    <main>
+      <section>
+        <h1>FlexCast Studio</h1>
+        <p>スマートフォンでQRコードを読み込み、カメラを許可して配信を開始してください。</p>
+        <button id="create">新しいカメラ招待を作成</button>
+        <img id="qr" alt="スマートフォン用の招待QRコード" />
+        <p id="join">招待を作成するとここに接続先を表示します。</p>
+      </section>
+      <section>
+        <h2>Edge preview</h2>
+        <canvas id="preview" width="960" height="540" aria-label="FlexCast Edge visual state preview"></canvas>
+        <p class="status" id="status">招待を作成して送信を開始してください。</p>
+        <p>この表示はEdgeが30fpsでレンダリングしたVisual Stateを、確認用にローカルで縮小して表示します。</p>
+      </section>
+    </main>
+    <script type="module">
+      const create = document.querySelector("#create"); const qr = document.querySelector("#qr"); const join = document.querySelector("#join"); const status = document.querySelector("#status");
+      const context = document.querySelector("#preview").getContext("2d", { alpha: false }); let polling = false;
+      async function poll() { if (!polling) return; try { const response = await fetch("/api/demo/preview.rgba", { cache: "no-store" }); if (!response.ok) throw new Error(); const pixels = new Uint8ClampedArray(await response.arrayBuffer()); if (pixels.byteLength !== 960 * 540 * 4) throw new Error(); context.putImageData(new ImageData(pixels, 960, 540), 0, 0); status.textContent = "EdgeからのVisual Stateを表示中"; } catch { status.textContent = "Edge previewを待機中…"; } finally { window.setTimeout(poll, 100); } }
+      create.addEventListener("click", async () => { create.disabled = true; try { const response = await fetch("/api/demo/sessions", { method: "POST" }); if (!response.ok) throw new Error("session"); const session = await response.json(); qr.src = `/api/demo/qr/${encodeURIComponent(session.token)}`; join.textContent = session.joinUrl; polling = true; void poll(); } catch { join.textContent = "招待を作成できませんでした。サーバー設定を確認してください。"; } finally { create.disabled = false; } });
+    </script>
+  </body>
+</html>
