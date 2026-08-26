@@ -1,0 +1,17 @@
+[package]
+name = "edge-gateway"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+anyhow = "1"
+clap = { version = "4", features = ["derive"] }
+fcst-protocol = { path = "../../crates/fcst-protocol" }
+renderer = { path = "../../crates/renderer" }
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "time", "sync", "io-util"] }
+visual-state = { path = "../../crates/visual-state" }
+wtransport = "0.6.1"
+
+[lints]
+workspace = true

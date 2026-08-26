@@ -1,0 +1,11 @@
+[package]
+name = "renderer"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+visual-state = { path = "../visual-state" }
+
+[lints]
+workspace = true

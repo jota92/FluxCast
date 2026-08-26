@@ -1,0 +1,8 @@
+{
+  "name": "@flexcast/protocol-types",
+  "version": "0.1.0",
+  "type": "module",
+  "exports": { ".": "./src/fcst.ts" },
+  "scripts": { "build": "tsc --noEmit", "test": "tsx test/fcst.test.ts" },
+  "devDependencies": { "tsx": "^4.20.0", "typescript": "^5.8.0" }
+}

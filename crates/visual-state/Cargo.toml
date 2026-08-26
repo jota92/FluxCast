@@ -1,0 +1,11 @@
+[package]
+name = "visual-state"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+fcst-protocol = { path = "../fcst-protocol" }
+
+[lints]
+workspace = true

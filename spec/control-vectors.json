@@ -1,6 +1,0 @@
-{
-  "format": "fcdp-v0.1-control",
-  "fec": { "symbol_len": 4, "fragment_count": 2, "original_len": 8, "payload_hex": "0004000200000008161a1a1e" },
-  "nack": { "sequences": [1, 2, 4000000], "payload_hex": "00030000000100000002003d0900" },
-  "ack": { "sent": 100, "received": 91, "late": 3, "rtt_micros": 31250, "payload_hex": "000000640000005b0000000300007a12" }
-}

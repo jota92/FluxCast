@@ -1,0 +1,11 @@
+{
+  "name": "flexcast",
+  "private": true,
+  "version": "0.1.0",
+  "scripts": {
+    "dev": "pnpm --filter @flexcast/sender-web dev",
+    "build": "pnpm --filter @flexcast/protocol-types build && pnpm --filter @flexcast/sender-web build",
+    "test": "pnpm --filter @flexcast/protocol-types test"
+  },
+  "packageManager": "pnpm@11.19.0"
+}

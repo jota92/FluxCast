@@ -1,0 +1,9 @@
+{
+  "name": "@flexcast/sender-web",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": { "dev": "vite --host 0.0.0.0", "build": "tsc --noEmit && vite build" },
+  "dependencies": { "@flexcast/protocol-types": "workspace:*" },
+  "devDependencies": { "typescript": "^5.8.0", "vite": "^6.2.0" }
+}

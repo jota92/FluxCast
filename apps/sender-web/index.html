@@ -1,0 +1,15 @@
+<!doctype html>
+<html lang="ja">
+  <head><meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" /><title>FlexCast Sender</title></head>
+  <body>
+    <main>
+      <header><span class="mark">FC</span><div><h1>FlexCast Camera</h1><p>Cloud Studioへ直接入力</p></div></header>
+      <section id="notice" class="notice">接続テストを開始してください。</section>
+      <video id="preview" autoplay muted playsinline></video>
+      <section class="stats" aria-label="配信状態"><div><b id="resolution">—</b><span>Capture</span></div><div><b id="connection">Idle</b><span>Edge</span></div><div><b id="fps">—</b><span>Processing</span></div><div><b id="bitrate">—</b><span>Target</span></div></section>
+      <section class="controls"><label>FlexCast Edge URL<input id="edge-url" type="url" placeholder="https://edge.example.com/fc" autocomplete="off" /></label><button id="preflight">接続テスト</button><button id="start" disabled>配信を開始</button><button id="stop" disabled>配信を終了</button></section>
+      <details><summary>診断情報</summary><pre id="diagnostics"></pre></details>
+      <p class="privacy">映像・音声を端末に保存しません。FlexCastは画面を開いたまま利用してください。</p>
+    </main><script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
