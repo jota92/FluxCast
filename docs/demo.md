@@ -34,6 +34,15 @@ pnpm --filter @flexcast/demo-server start
 
 カメラが1080p30を公開しない端末では、送信ページはその実解像度を取得して60×45の論理Visual Stateへ正規化する**互換モード**で開始できます。Edgeの出力契約は1920×1080のままです。FHD30を実測する評価では、送信ページの表示が `FHD30 Ready` である端末だけを採用してください。
 
+## iPhoneでの開発用証明書の信頼
+
+WebTransportは、Safariで表示された警告を通過しただけの自己署名証明書には接続できません。ローカルCAを使用するデモでは、CA証明書を渡すために `FLEXCAST_DEMO_CA_CERT=/absolute/path/FlexCast-Demo-CA.cer` をStudio起動時に追加します。iPhoneで `https://<LAN-IP>:3030/flexcast-demo-ca.cer` を開き、次を一度だけ行います。
+
+1. ダウンロードしたプロファイルを「設定」→「一般」→「VPNとデバイス管理」からインストールする。
+2. 「設定」→「一般」→「情報」→「証明書信頼設定」で **FlexCast Demo Development CA** のフル信頼を有効にする。
+
+その後QRをもう一度開きます。このCAは開発ネットワーク専用です。秘密鍵やCA証明書を公開サーバーへ配置しないでください。
+
 ## ポート
 
 | 用途 | ポート | プロトコル |

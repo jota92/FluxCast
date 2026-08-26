@@ -15,6 +15,7 @@ const edgeUrl = process.env.FLEXCAST_EDGE_URL;
 const previewUrl = process.env.FLEXCAST_EDGE_PREVIEW_URL ?? "http://127.0.0.1:3031/preview.rgba";
 const certificate = process.env.FLEXCAST_TLS_CERT;
 const key = process.env.FLEXCAST_TLS_KEY;
+const developmentCa = process.env.FLEXCAST_DEMO_CA_CERT;
 const sessions = new Map();
 
 if (!origin || !edgeUrl || !certificate || !key) {
@@ -48,6 +49,10 @@ const server = createServer({ cert: await fs.readFile(certificate), key: await f
   if (request.method === "GET" && requestUrl.pathname === "/") {
     response.writeHead(200, { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store" });
     return createReadStream(studio).pipe(response);
+  }
+  if (request.method === "GET" && requestUrl.pathname === "/flexcast-demo-ca.cer" && developmentCa) {
+    response.writeHead(200, { "Content-Type": "application/x-x509-ca-cert", "Content-Disposition": "attachment; filename=FlexCast-Demo-CA.cer", "Cache-Control": "no-store" });
+    return createReadStream(developmentCa).pipe(response);
   }
   if (request.method === "POST" && requestUrl.pathname === "/api/demo/sessions") {
     const token = randomUUID(); sessions.set(token, Date.now());
