@@ -13,6 +13,7 @@ const port = Number(process.env.PORT ?? 3030);
 const origin = process.env.FLEXCAST_DEMO_ORIGIN;
 const edgeUrl = process.env.FLEXCAST_EDGE_URL;
 const previewUrl = process.env.FLEXCAST_EDGE_PREVIEW_URL ?? "http://127.0.0.1:3031/preview.rgba";
+const metricsUrl = process.env.FLEXCAST_EDGE_METRICS_URL ?? "http://127.0.0.1:3031/metrics.json";
 const certificate = process.env.FLEXCAST_TLS_CERT;
 const key = process.env.FLEXCAST_TLS_KEY;
 const sessions = new Map();
@@ -66,6 +67,13 @@ const server = createServer({ cert: await fs.readFile(certificate), key: await f
       const bytes = new Uint8Array(await upstream.arrayBuffer());
       return send(response, 200, bytes, "application/octet-stream");
     } catch { return send(response, 503, "Edge preview unavailable"); }
+  }
+  if (request.method === "GET" && requestUrl.pathname === "/api/demo/metrics") {
+    try {
+      const upstream = await fetch(metricsUrl, { cache: "no-store" });
+      if (!upstream.ok) return send(response, 503, "Edge metrics unavailable");
+      return send(response, 200, await upstream.text(), "application/json; charset=utf-8");
+    } catch { return send(response, 503, "Edge metrics unavailable"); }
   }
   if (request.method === "GET" && requestUrl.pathname.startsWith("/j/")) {
     const token = requestUrl.pathname.slice(3);

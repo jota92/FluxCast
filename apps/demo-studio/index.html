@@ -22,13 +22,14 @@
         <h2>Edge preview</h2>
         <canvas id="preview" width="960" height="540" aria-label="FlexCast Edge visual state preview"></canvas>
         <p class="status" id="status">招待を作成して送信を開始してください。</p>
+        <p id="metrics">受信状態: 接続待機中</p>
         <p>この表示はEdgeが30fpsでレンダリングしたVisual Stateを、確認用にローカルで縮小して表示します。</p>
       </section>
     </main>
     <script type="module">
-      const create = document.querySelector("#create"); const qr = document.querySelector("#qr"); const join = document.querySelector("#join"); const status = document.querySelector("#status");
+      const create = document.querySelector("#create"); const qr = document.querySelector("#qr"); const join = document.querySelector("#join"); const status = document.querySelector("#status"); const metrics = document.querySelector("#metrics");
       const context = document.querySelector("#preview").getContext("2d", { alpha: false }); let polling = false;
-      async function poll() { if (!polling) return; try { const response = await fetch("/api/demo/preview.rgba", { cache: "no-store" }); if (!response.ok) throw new Error(); const pixels = new Uint8ClampedArray(await response.arrayBuffer()); if (pixels.byteLength !== 960 * 540 * 4) throw new Error(); context.putImageData(new ImageData(pixels, 960, 540), 0, 0); status.textContent = "EdgeからのVisual Stateを表示中"; } catch { status.textContent = "Edge previewを待機中…"; } finally { window.setTimeout(poll, 100); } }
+      async function poll() { if (!polling) return; try { const response = await fetch("/api/demo/preview.rgba", { cache: "no-store" }); if (!response.ok) throw new Error(); const pixels = new Uint8ClampedArray(await response.arrayBuffer()); if (pixels.byteLength !== 960 * 540 * 4) throw new Error(); context.putImageData(new ImageData(pixels, 960, 540), 0, 0); const stats = await fetch("/api/demo/metrics", { cache: "no-store" }).then((r) => r.ok ? r.json() : null); if (stats) metrics.textContent = `受信: ${stats.populatedRegions}/2700 Region · p95更新: ${stats.p95RegionAgeMs}ms · Render: ${stats.renderedFrames} frame`; status.textContent = "EdgeからのVisual Stateを表示中"; } catch { status.textContent = "Edge previewを待機中…"; } finally { window.setTimeout(poll, 100); } }
       create.addEventListener("click", async () => { create.disabled = true; try { const response = await fetch("/api/demo/sessions", { method: "POST" }); if (!response.ok) throw new Error("session"); const session = await response.json(); qr.src = `/api/demo/qr/${encodeURIComponent(session.token)}`; join.textContent = session.joinUrl; polling = true; void poll(); } catch { join.textContent = "招待を作成できませんでした。サーバー設定を確認してください。"; } finally { create.disabled = false; } });
     </script>
   </body>

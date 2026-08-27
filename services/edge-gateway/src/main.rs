@@ -101,6 +101,7 @@ async fn render_clock(shared: Arc<Shared>) {
 async fn preview_server(port: u16, shared: Arc<Shared>) {
     let app = Router::new()
         .route("/preview.rgba", get(preview))
+        .route("/metrics.json", get(metrics))
         .with_state(shared);
     let address = format!("127.0.0.1:{port}");
     let Ok(listener) = tokio::net::TcpListener::bind(&address).await else {
@@ -118,6 +119,29 @@ async fn preview(axum::extract::State(shared): axum::extract::State<Arc<Shared>>
         .header(header::ACCESS_CONTROL_ALLOW_ORIGIN, "*")
         .header("Cache-Control", "no-store")
         .body(bytes.into())
+        .expect("static response")
+}
+
+async fn metrics(axum::extract::State(shared): axum::extract::State<Arc<Shared>>) -> Response {
+    let now = Instant::now();
+    let state = shared.state.lock().await.metrics(now);
+    let edge = shared.metrics.lock().await;
+    let body = format!(
+        "{{\"populatedRegions\":{},\"meanRegionAgeMs\":{},\"p95RegionAgeMs\":{},\"receivedAtoms\":{},\"appliedAtoms\":{},\"invalidAtoms\":{},\"replayedAtoms\":{},\"renderedFrames\":{}}}",
+        state.populated_regions,
+        state.mean_age_ms,
+        state.p95_age_ms,
+        edge.received_datagrams,
+        edge.applied_atoms,
+        edge.invalid_atoms,
+        edge.replayed_atoms,
+        edge.rendered_frames,
+    );
+    Response::builder()
+        .header(header::CONTENT_TYPE, "application/json")
+        .header(header::ACCESS_CONTROL_ALLOW_ORIGIN, "*")
+        .header("Cache-Control", "no-store")
+        .body(body.into())
         .expect("static response")
 }
 
