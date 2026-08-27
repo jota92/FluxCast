@@ -127,6 +127,9 @@ async fn handle(incoming: IncomingSession, shared: Arc<Shared>) -> Result<()> {
         anyhow::bail!("unexpected WebTransport path");
     }
     let connection = request.accept().await?;
+    // The demo has one active publisher.  Do not show stale regions from a
+    // previous camera while the new publisher converges its Visual State.
+    shared.state.lock().await.clear();
     let mut last_by_epoch: HashMap<u32, u32> = HashMap::new();
     loop {
         tokio::select! {

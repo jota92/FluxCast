@@ -57,6 +57,12 @@ impl VisualState {
         self.applied_atoms += 1;
         true
     }
+    /// Clears the current visual state before a newly accepted publisher starts.
+    ///
+    /// A new camera must never inherit tiles from a previous camera session.
+    pub fn clear(&mut self) {
+        self.regions.fill(None);
+    }
     #[must_use]
     pub fn surface(&self, id: u16) -> Option<&Surface> {
         self.regions
@@ -142,5 +148,14 @@ mod tests {
         assert!(state.apply_surface(h(0, 1, 0), s(), now));
         assert!(!state.apply_surface(h(0, 2, 9), s(), now));
         assert_eq!(state.metrics(now).rejected_base, 1);
+    }
+    #[test]
+    fn clears_previously_renderable_regions() {
+        let mut state = VisualState::new();
+        let now = Instant::now();
+        assert!(state.apply_surface(h(0, 1, 0), s(), now));
+        state.clear();
+        assert!(state.surface(0).is_none());
+        assert_eq!(state.metrics(now).populated_regions, 0);
     }
 }
