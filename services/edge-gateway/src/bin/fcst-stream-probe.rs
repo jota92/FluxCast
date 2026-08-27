@@ -33,6 +33,24 @@ fn surface_atom(region_id: u16, sequence: u32, rgb: [u8; 3]) -> Vec<u8> {
     atom
 }
 
+fn sample_atom(region_id: u16, sequence: u32, frame: u16) -> Vec<u8> {
+    let mut atom = surface_atom(region_id, sequence, [0; 3]);
+    let row = usize::from(region_id) / 60;
+    let col = usize::from(region_id) % 60;
+    for y in 0..24 {
+        for x in 0..32 {
+            let global_x = col * 32 + x;
+            let global_y = row * 24 + y;
+            let offset = HEADER_LEN + 1 + (y * 32 + x) * 3;
+            let stripe = ((global_x / 64 + global_y / 54 + usize::from(frame / 12)) % 2) as u8;
+            atom[offset] = (global_x as u16 + frame * 3) as u8;
+            atom[offset + 1] = (global_y as u16 * 2 + frame * 5) as u8;
+            atom[offset + 2] = if stripe == 0 { 48 } else { 220 };
+        }
+    }
+    atom
+}
+
 #[tokio::main]
 async fn main() -> Result<()> {
     let url = std::env::args()
@@ -44,7 +62,7 @@ async fn main() -> Result<()> {
     let mut stream = connection.open_uni().await?.await?;
     let rgb = [0x25, 0x80, 0xf0];
     for region_id in 0..REGION_COUNT {
-        let atom = surface_atom(region_id, u32::from(region_id) + 1, rgb);
+        let atom = sample_atom(region_id, u32::from(region_id) + 1, 0);
         stream.write_all(&(ATOM_BYTES as u32).to_be_bytes()).await?;
         stream.write_all(&atom).await?;
     }
@@ -53,12 +71,7 @@ async fn main() -> Result<()> {
     for frame in 0_u16..90 {
         for slot in 0_u16..35 {
             let region_id = (frame * 35 + slot) % REGION_COUNT;
-            let sample_rgb = [
-                frame.wrapping_mul(7) as u8,
-                region_id.wrapping_mul(3) as u8,
-                frame.wrapping_add(region_id).wrapping_mul(5) as u8,
-            ];
-            let atom = surface_atom(region_id, sequence, sample_rgb);
+            let atom = sample_atom(region_id, sequence, frame + 1);
             stream.write_all(&(ATOM_BYTES as u32).to_be_bytes()).await?;
             stream.write_all(&atom).await?;
             sequence += 1;
