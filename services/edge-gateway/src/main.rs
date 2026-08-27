@@ -7,7 +7,10 @@ use fcst_protocol::{AtomType, Header, Surface};
 use renderer::FrameRenderer;
 use std::{
     collections::HashMap,
-    sync::Arc,
+    sync::{
+        Arc,
+        atomic::{AtomicU64, Ordering},
+    },
     time::{Duration, Instant},
 };
 use tokio::sync::Mutex;
@@ -40,6 +43,7 @@ struct Shared {
     state: Mutex<VisualState>,
     metrics: Mutex<EdgeMetrics>,
     preview_rgba: Mutex<Vec<u8>>,
+    publisher_generation: AtomicU64,
 }
 
 #[tokio::main]
@@ -58,6 +62,7 @@ async fn main() -> Result<()> {
         state: Mutex::new(VisualState::new()),
         metrics: Mutex::new(EdgeMetrics::default()),
         preview_rgba: Mutex::new(vec![0; 960 * 540 * 4]),
+        publisher_generation: AtomicU64::new(0),
     });
     tokio::spawn(render_clock(Arc::clone(&shared)));
     tokio::spawn(preview_server(args.preview_port, Arc::clone(&shared)));
@@ -154,9 +159,10 @@ async fn handle(incoming: IncomingSession, shared: Arc<Shared>) -> Result<()> {
     let connection = request.accept().await?;
     // The demo has one active publisher.  Do not show stale regions from a
     // previous camera while the new publisher converges its Visual State.
+    let generation = shared.publisher_generation.fetch_add(1, Ordering::AcqRel) + 1;
     shared.state.lock().await.clear();
     let mut last_by_epoch: HashMap<u32, u32> = HashMap::new();
-    loop {
+    'connection: loop {
         tokio::select! {
             result = connection.accept_bi() => {
                 let (mut send, mut recv) = result?;
@@ -168,6 +174,7 @@ async fn handle(incoming: IncomingSession, shared: Arc<Shared>) -> Result<()> {
             }
             result = connection.receive_datagram() => {
                 let datagram = result?;
+                if shared.publisher_generation.load(Ordering::Acquire) != generation { break 'connection Ok(()); }
                 let now = Instant::now();
                 let bytes = datagram.as_ref();
                 let Ok((header, payload)) = Header::decode(bytes) else { shared.metrics.lock().await.invalid_atoms += 1; continue; };
@@ -188,6 +195,7 @@ async fn handle(incoming: IncomingSession, shared: Arc<Shared>) -> Result<()> {
                 // framed as [u32 big-endian FCST atom length][FCST atom].
                 let mut recv = result?;
                 loop {
+                    if shared.publisher_generation.load(Ordering::Acquire) != generation { break; }
                     let mut length = [0_u8; 4];
                     if recv.read_exact(&mut length).await.is_err() { break; }
                     let size = u32::from_be_bytes(length) as usize;
