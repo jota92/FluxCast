@@ -16,7 +16,7 @@ pub struct RegionState {
     pub updated_at: Instant,
     pub confidence: u8,
 }
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct VisualState {
     regions: Vec<Option<RegionState>>,
     applied_atoms: u64,

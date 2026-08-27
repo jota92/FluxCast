@@ -82,7 +82,9 @@ async fn render_clock(shared: Arc<Shared>) {
     loop {
         interval.tick().await;
         let now = Instant::now();
-        let state = shared.state.lock().await;
+        // Keep the state lock only long enough to snapshot it. Rendering an
+        // FHD frame while holding the lock starves the WebTransport receiver.
+        let state = shared.state.lock().await.clone();
         let frame = renderer.render(&state, now);
         let mut preview = shared.preview_rgba.lock().await;
         for output_y in 0..540 {
@@ -93,7 +95,6 @@ async fn render_clock(shared: Arc<Shared>) {
             }
         }
         drop(preview);
-        drop(state);
         shared.metrics.lock().await.rendered_frames = renderer.frames();
     }
 }
