@@ -155,6 +155,30 @@ async fn handle(incoming: IncomingSession, shared: Arc<Shared>) -> Result<()> {
                     if state.apply_surface(header, surface, now) { shared.metrics.lock().await.applied_atoms += 1; }
                 }
             }
+            result = connection.accept_uni() => {
+                // Safari compatibility: one continuous unidirectional stream,
+                // framed as [u32 big-endian FCST atom length][FCST atom].
+                let mut recv = result?;
+                loop {
+                    let mut length = [0_u8; 4];
+                    if recv.read_exact(&mut length).await.is_err() { break; }
+                    let size = u32::from_be_bytes(length) as usize;
+                    if !(40..=65_535).contains(&size) { shared.metrics.lock().await.invalid_atoms += 1; break; }
+                    let mut bytes = vec![0_u8; size];
+                    if recv.read_exact(&mut bytes).await.is_err() { break; }
+                    let now = Instant::now();
+                    let Ok((header, payload)) = Header::decode(&bytes) else { shared.metrics.lock().await.invalid_atoms += 1; continue; };
+                    shared.metrics.lock().await.received_datagrams += 1;
+                    let prior = last_by_epoch.entry(header.session_epoch).or_insert(0);
+                    if header.atom_sequence <= *prior { shared.metrics.lock().await.replayed_atoms += 1; continue; }
+                    *prior = header.atom_sequence;
+                    if header.atom_type == AtomType::Surface || header.atom_type == AtomType::Refresh || header.atom_type == AtomType::Repair {
+                        let Ok(surface) = Surface::decode(payload) else { shared.metrics.lock().await.invalid_atoms += 1; continue; };
+                        let mut state = shared.state.lock().await;
+                        if state.apply_surface(header, surface, now) { shared.metrics.lock().await.applied_atoms += 1; }
+                    }
+                }
+            }
         }
     }
 }
