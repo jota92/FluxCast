@@ -82,3 +82,4 @@ export function encodeSurface(luma: Uint8Array, chromaA: Int8Array, chromaB: Int
   output.set(new Uint8Array(chromaB.buffer, chromaB.byteOffset, chromaB.byteLength), 61);
   return output;
 }
+export function encodeRawSurface(rgb: Uint8Array): Uint8Array { if (rgb.byteLength !== 32 * 24 * 3) throw new Error("invalid raw surface"); const output = new Uint8Array(rgb.byteLength + 1); output[0] = 0xff; output.set(rgb, 1); return output; }

@@ -33,6 +33,18 @@ impl FrameRenderer {
             };
             let row = usize::from(region) / REGIONS_X;
             let col = usize::from(region) % REGIONS_X;
+            if let Some(raw) = &surface.raw_rgb {
+                for y in 0..REGION_HEIGHT {
+                    for x in 0..REGION_WIDTH {
+                        let source = (y * REGION_WIDTH + x) * 3;
+                        let pixel =
+                            ((row * REGION_HEIGHT + y) * WIDTH + col * REGION_WIDTH + x) * 4;
+                        self.rgba[pixel..pixel + 3].copy_from_slice(&raw[source..source + 3]);
+                        self.rgba[pixel + 3] = 255;
+                    }
+                }
+                continue;
+            }
             for y in 0..REGION_HEIGHT {
                 for x in 0..REGION_WIDTH {
                     let gx = (x * 8 / REGION_WIDTH).min(7);

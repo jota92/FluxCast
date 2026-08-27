@@ -132,6 +132,7 @@ mod tests {
             luma: [123; 48],
             chroma_a: [0; 12],
             chroma_b: [0; 12],
+            raw_rgb: None,
         }
     }
     #[test]

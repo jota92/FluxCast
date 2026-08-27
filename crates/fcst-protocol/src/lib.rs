@@ -136,10 +136,20 @@ pub struct Surface {
     pub luma: [u8; 48],
     pub chroma_a: [i8; 12],
     pub chroma_b: [i8; 12],
+    pub raw_rgb: Option<Vec<u8>>,
 }
 impl Surface {
     pub const LEN: usize = 73;
     pub fn decode(payload: &[u8]) -> Result<Self, Error> {
+        if payload.first() == Some(&0xff) && payload.len() == 2305 {
+            return Ok(Self {
+                quantization: 0xff,
+                luma: [0; 48],
+                chroma_a: [0; 12],
+                chroma_b: [0; 12],
+                raw_rgb: Some(payload[1..].to_vec()),
+            });
+        }
         if payload.len() != Self::LEN {
             return Err(Error::Surface);
         }
@@ -158,6 +168,7 @@ impl Surface {
             luma,
             chroma_a,
             chroma_b,
+            raw_rgb: None,
         })
     }
 }
