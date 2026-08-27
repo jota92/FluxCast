@@ -5,6 +5,7 @@
 
 use anyhow::{Context, Result};
 use fcst_protocol::{AtomType, HEADER_LEN, REGION_COUNT, VERSION};
+use tokio::time::{Duration, sleep};
 use wtransport::{ClientConfig, Endpoint};
 
 const RAW_SURFACE_BYTES: usize = 1 + 32 * 24 * 3;
@@ -47,9 +48,26 @@ async fn main() -> Result<()> {
         stream.write_all(&(ATOM_BYTES as u32).to_be_bytes()).await?;
         stream.write_all(&atom).await?;
     }
+    // 30fps・約16Mbpsの動的サンプル。Safari互換ストリームの継続更新を検証する。
+    let mut sequence = u32::from(REGION_COUNT) + 1;
+    for frame in 0_u16..90 {
+        for slot in 0_u16..35 {
+            let region_id = (frame * 35 + slot) % REGION_COUNT;
+            let sample_rgb = [
+                frame.wrapping_mul(7) as u8,
+                region_id.wrapping_mul(3) as u8,
+                frame.wrapping_add(region_id).wrapping_mul(5) as u8,
+            ];
+            let atom = surface_atom(region_id, sequence, sample_rgb);
+            stream.write_all(&(ATOM_BYTES as u32).to_be_bytes()).await?;
+            stream.write_all(&atom).await?;
+            sequence += 1;
+        }
+        sleep(Duration::from_millis(33)).await;
+    }
     stream.finish().await?;
     println!(
-        "fcst.stream_probe.sent regions={REGION_COUNT} rgb=#{:02x}{:02x}{:02x}",
+        "fcst.stream_probe.sent initial_regions={REGION_COUNT} sample_frames=90 sample_updates=3150 rgb=#{:02x}{:02x}{:02x}",
         rgb[0], rgb[1], rgb[2]
     );
     Ok(())
